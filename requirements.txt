@@ -1,2 +1,4 @@
 sqlalchemy>=2.0
 pytest
+pytesseract
+Pillow
