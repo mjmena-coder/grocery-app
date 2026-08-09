@@ -1,5 +1,20 @@
+# Python
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Virtual environments
+venv/
+eval-env/
+.venv/
+
+# Local data
 *.db
 .env
-venv/
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
