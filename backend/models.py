@@ -35,6 +35,15 @@ class Recipe(Base):
     title: Mapped[str]
     source: Mapped[Optional[str]]
     steps: Mapped[Optional[str]]
+    
+    # NEW FIELDS:
+    yield_info: Mapped[Optional[str]]
+    prep_time: Mapped[Optional[str]]
+    cook_time: Mapped[Optional[str]]
+    notes: Mapped[list] = mapped_column(JSON, default=list)
+    extraction_confidence: Mapped[Optional[float]]
+    confidence_reasons: Mapped[list] = mapped_column(JSON, default=list)
+
     tags: Mapped[list] = mapped_column(JSON, default=list)
     times_cooked: Mapped[int] = mapped_column(default=0)
     last_cooked_date: Mapped[Optional[date]]
@@ -54,6 +63,12 @@ class Ingredient(Base):
     raw_name: Mapped[str]
     quantity: Mapped[Optional[float]]
     unit: Mapped[Optional[str]]
+    comment: Mapped[Optional[str]]
+    needs_manual_review: Mapped[bool] = mapped_column(default=False)
+    review_reason: Mapped[Optional[str]]
+    
+    # NEW FIELD:
+    ambiguous_quantity: Mapped[bool] = mapped_column(default=False)
 
     recipe: Mapped["Recipe"] = relationship(back_populates="ingredients")
     canonical_ingredient: Mapped[Optional["CanonicalIngredient"]] = relationship()

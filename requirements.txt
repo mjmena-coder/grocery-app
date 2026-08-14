@@ -1,2 +1,8 @@
+fastapi
+uvicorn[standard]
+python-multipart
+ollama
+pint
+ingredient-parser-nlp
 sqlalchemy>=2.0
 pytest

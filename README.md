@@ -1,36 +1,45 @@
-# Grocery App
+# Grocery Assistant API
 
-Turns printed cookbook recipes into aisle-ordered grocery lists for
-King Soopers and Whole Foods, replacing manual weekend list-building.
+A VLM-powered backend service designed to automate grocery list management, recipe extraction, and store routing.
 
-## Architecture
+## Features
+- **Recipe Extraction**: Uses VLM (via Ollama) to parse images of physical recipes into structured data.
+- **Canonical Mapping**: Automatically maps raw ingredients to a canonical database.
+- **Grocery Management**: Tracks ingredient lists and generates optimized shopping routes.
+- **Store Routing**: Manages store inventories and aisle mappings.
 
-- **Pi 5** (`backend/`): always-on API service + SQLite database.
-  Reachable on the home network only, no public exposure.
-- **`capture/`**: on-demand recipe-photo OCR via Apple Vision
-  (`VNRecognizeTextRequest`). Runs on a Mac or iPhone (Shortcuts),
-  never on the Pi -- macOS/iOS only, not part of CI. See
-  `capture/README.md`.
-- **Frontend**: PWA, not yet started. Will be reachable from any
-  device (iPhone, Pixel, laptop) regardless of which device did OCR
-  capture.
+## Tech Stack
+- **Backend**: FastAPI
+- **Database**: SQLite with SQLAlchemy ORM
+- **Inference**: Ollama (Qwen2.5-VL)
 
-Full design rationale and phasing lives in `grocery-app-build-plan.md`
-and `build-plan-addendum.md` (OCR engine pivot), tracked outside this
-repo.
+## API Endpoints
 
-## Status
+### Health
+- `GET /health`: Returns service status.
 
-Phase 0 (schema + CI) complete. Phase 1 (recipe parsing) in progress --
-OCR engine finalized (Apple Vision), reading-order validation and
-ingredient/directions segmentation still being built out.
+### Recipes
+- `POST /recipes/extract`: Processes an image upload, extracts recipe data, and saves to the database.
 
-## Setup
+### Canonical Ingredients
+- `GET /canonical`: List all canonical ingredients.
+- `POST /canonical`: Add or update a canonical ingredient.
 
-```bash
-pip install -r requirements.txt
-pytest
-```
+### Grocery List
+- `GET /grocery_list`: Retrieve current shopping list.
+- `POST /grocery_list`: Add items to the list.
 
-For the OCR capture step, see `capture/README.md` (separate
-macOS-only dependencies).
+### Stores
+- `GET /stores`: List all configured grocery stores and their metadata.
+
+## Getting Started
+
+1. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Run the Server**
+   ```bash
+   uvicorn backend.main:app --reload
+   ```
