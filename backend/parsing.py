@@ -1,67 +1,8 @@
 import re
+from typing import Optional
+from ingredient_parser import parse_ingredient as _parse_ingredient_nlp
 
-UNIT_WORDS = {
-    "cup", "cups", "tbsp", "tablespoon", "tablespoons",
-    "tsp", "teaspoon", "teaspoons", "oz", "ounce", "ounces",
-    "lb", "lbs", "ib", "ibs",  # "ib"/"ibs": common OCR misread of "lb"/"lbs"
-    "pound", "pounds", "g", "gram", "grams", "kg", "ml", "l",
-    "liter", "liters", "pinch", "clove", "cloves", "can", "cans",
-}
-
-INGREDIENTS_HEADER_RE = re.compile(r"^ingredients?\b", re.IGNORECASE)
-DIRECTIONS_HEADER_RE = re.compile(
-    r"^(directions?|instructions?|method|steps)\b", re.IGNORECASE
-)
-
-QUANTITY_RE = re.compile(
-    r"^\s*(\d+\s+\d+/\d+|\d+/\d+|\d+\.\d+|\d+\s*-\s*\d+|\d+)\s*"
-)
-
-LEADING_NOISE_RE = re.compile(r"^[^\w\d]+")  # strips bullet-OCR junk like "e ", "• "
-
-# Standalone single-char tokens Tesseract commonly confuses with the
-# numeral 1 -- only applied to the very first token of a line, since
-# ingredient lines almost always start with a quantity.
 LEADING_TOKEN_FIXES = {"|": "1", "I": "1", "l": "1"}
-
-STEP_MARKER_RE = re.compile(r"^\d+[\.\)]\s*")
-
-TRAILING_NOTE_RE = re.compile(r"^note[:\s]", re.IGNORECASE)
-
-def segment_lines(text: str) -> tuple[list[str], list[str]]:
-    section = "before"
-    ingredient_lines: list[str] = []
-    raw_step_lines: list[str] = []
-
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        if INGREDIENTS_HEADER_RE.match(line):
-            section = "ingredients"
-            continue
-        if DIRECTIONS_HEADER_RE.match(line):
-            section = "steps"
-            continue
-        if TRAILING_NOTE_RE.match(line):
-            section = "done"
-            continue
-
-        if section == "ingredients":
-            ingredient_lines.append(line)
-        elif section == "steps":
-            raw_step_lines.append(line)
-
-    # Rejoin wrapped lines: a new step starts only at a numbered marker;
-    # everything else is a continuation of the previous step.
-    steps: list[str] = []
-    for line in raw_step_lines:
-        if STEP_MARKER_RE.match(line) or not steps:
-            steps.append(line)
-        else:
-            steps[-1] = f"{steps[-1]} {line}"
-
-    return ingredient_lines, steps
 
 def _strip_leading_noise_tokens(line: str) -> str:
     """
@@ -74,7 +15,7 @@ def _strip_leading_noise_tokens(line: str) -> str:
     start = 0
     while start < len(tokens):
         token = tokens[start].strip(".,()")
-        if re.match(r"^\d", token):
+        if re.match(r"^[\d½¼¾⅓⅔⅛⅜⅝⅞]", token):
             break
         if token in LEADING_TOKEN_FIXES:
             tokens[start] = LEADING_TOKEN_FIXES[token]
@@ -86,43 +27,103 @@ def _strip_leading_noise_tokens(line: str) -> str:
     return " ".join(tokens[start:])
 
 
-def _parse_quantity(token: str) -> float:
-    token = token.strip()
-    if "-" in token and "/" not in token:
-        low, high = token.split("-")
-        return (float(low) + float(high)) / 2
-    if " " in token and "/" in token:
-        whole, frac = token.split(" ", 1)
-        num, denom = frac.split("/")
-        return float(whole) + float(num) / float(denom)
-    if "/" in token:
-        num, denom = token.split("/")
-        return float(num) / float(denom)
-    return float(token)
+def _amount_to_quantity_unit(amounts: list) -> tuple[Optional[float], Optional[str], bool]:
+    """
+    Reduce the library's amount list to a single (quantity, unit) pair
+    plus an is_ambiguous flag. A single amount is the normal case. Zero
+    amounts means no quantity was stated (e.g. "salt to taste") -- not
+    itself a problem. More than one amount (seen on real OCR output,
+    e.g. a stray slash splitting "1 1/2 cups" into two separate parsed
+    amounts) means the parser got confused -- surface it rather than
+    silently picking one.
+    """
+    if not amounts:
+        return None, None, False
+    if len(amounts) > 1:
+        first = amounts[0]
+        unit = str(first.unit) if first.unit else None
+        return float(first.quantity), unit, True
+
+    amt = amounts[0]
+    quantity = float(amt.quantity)
+    if amt.quantity != amt.quantity_max:
+        quantity = float((amt.quantity + amt.quantity_max) / 2)
+    unit = str(amt.unit) if amt.unit else None
+    return quantity, unit, bool(amt.RANGE)
 
 
 def parse_ingredient_line(line: str) -> dict:
+    """
+    Parse a single OCR'd ingredient line into quantity/unit/name/comment
+    via ingredient-parser-nlp. Any exception, missing name, multiple
+    candidate names, or multiple parsed amounts is flagged for manual
+    review rather than guessed at -- mirrors the ingredient_slicer
+    bake-off finding that confident-but-wrong output (e.g. '148 cups'
+    from garbled input) is worse than no output.
+    """
     line = _strip_leading_noise_tokens(line)
 
-    match = QUANTITY_RE.match(line)
-    quantity = None
-    is_range = False
-    rest = line
-    if match:
-        raw_qty = match.group(1)
-        is_range = "-" in raw_qty and "/" not in raw_qty
-        quantity = _parse_quantity(raw_qty)
-        rest = line[match.end():].strip()
+    if not line:
+        return {
+            "quantity": None, "unit": None, "raw_name": line, "comment": None,
+            "needs_manual_review": True,
+            "review_reason": "empty line",
+        }
 
-    words = rest.split()
-    unit = None
-    if words and words[0].lower().rstrip(".,") in UNIT_WORDS:
-        unit = words[0].lower().rstrip(".,")
-        if unit in {"lb", "ib", "lbs", "ibs"}:
-            unit = "lb"
-        rest = " ".join(words[1:])
+    try:
+        parsed = _parse_ingredient_nlp(line)
+    except Exception as exc:
+        return {
+            "quantity": None, "unit": None, "raw_name": line, "comment": None,
+            "needs_manual_review": True,
+            "review_reason": f"parser exception: {exc}",
+        }
 
-    result = {"quantity": quantity, "unit": unit, "raw_name": rest.strip()}
-    if is_range:
+    if not parsed.name:
+        return {
+            "quantity": None, "unit": None, "raw_name": line, "comment": None,
+            "needs_manual_review": True,
+            "review_reason": "no ingredient name extracted",
+        }
+
+    names = [n.text.strip() for n in parsed.name if n.text.strip()]
+    name = " or ".join(names) if names else None
+    if not name:
+        return {
+            "quantity": None, "unit": None, "raw_name": line, "comment": None,
+            "needs_manual_review": True,
+            "review_reason": "no ingredient name extracted",
+        }
+
+    comment_parts = []
+    if parsed.preparation:
+        comment_parts.append(parsed.preparation.text.strip())
+    if parsed.comment:
+        comment_parts.append(parsed.comment.text.strip())
+    comment = "; ".join(p for p in comment_parts if p) or None
+
+    quantity, unit, ambiguous_quantity = _amount_to_quantity_unit(parsed.amount)
+    if unit in {"ib", "ibs"}:
+        unit = "lb"
+
+    needs_manual_review = False
+    review_reason = None
+    if len(names) > 1:
+        needs_manual_review = True
+        review_reason = "multiple candidate ingredient names extracted"
+    elif len(parsed.amount) > 1:
+        needs_manual_review = True
+        review_reason = "multiple quantities parsed for one line -- likely OCR corruption"
+
+    result = {
+        "quantity": quantity,
+        "unit": unit,
+        "raw_name": name,
+        "comment": comment,
+        "needs_manual_review": needs_manual_review,
+    }
+    if review_reason:
+        result["review_reason"] = review_reason
+    if ambiguous_quantity:
         result["ambiguous_quantity"] = True
     return result
