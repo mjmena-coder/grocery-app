@@ -2,9 +2,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from backend.database import get_session
 from backend.services.recipe_service import process_and_save_recipe
+from backend.models import Recipe
 
 router = APIRouter(prefix="/recipes", tags=["Recipes"])
 
@@ -34,15 +36,61 @@ def list_recipes(
     session: Session = Depends(get_session)
 ):
     """Fetch saved recipes with optional favorite and title search filters."""
-    # Logic delegates to query helper or recipe service
-    return {"status": "ok", "recipes": []}
+    stmt = select(Recipe)
+
+    # Apply favorite filter if provided
+    if favorite is not None:
+        stmt = stmt.where(Recipe.favorite == favorite)
+
+    # Apply case-insensitive title search if provided
+    if search:
+        stmt = stmt.where(Recipe.title.ilike(f"%{search}%"))
+
+    recipes = session.scalars(stmt).all()
+    
+    return {
+        "status": "ok", 
+        "count": len(recipes),
+        "recipes": recipes
+    }
 
 
 @router.get("/{recipe_id}")
 def get_recipe(recipe_id: int, session: Session = Depends(get_session)):
     """Retrieve full details for a single recipe including structured ingredients."""
-    return {"status": "ok", "recipe_id": recipe_id}
-
+    recipe = session.get(Recipe, recipe_id)
+    
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+        
+    return {
+        "status": "ok",
+        "recipe": {
+            "id": recipe.id,
+            "title": recipe.title,
+            "source": recipe.source,
+            "steps": recipe.steps.split("\n") if recipe.steps else [],
+            "yield_info": recipe.yield_info,
+            "prep_time": recipe.prep_time,
+            "cook_time": recipe.cook_time,
+            "notes": recipe.notes,
+            "extraction_confidence": recipe.extraction_confidence,
+            "confidence_reasons": recipe.confidence_reasons,
+            "ingredients": [
+                {
+                    "id": ing.id,
+                    "raw_name": ing.raw_name,
+                    "quantity": ing.quantity,
+                    "unit": ing.unit,
+                    "comment": ing.comment,
+                    "canonical_ingredient_id": ing.canonical_ingredient_id,
+                    "needs_manual_review": ing.needs_manual_review,
+                    "review_reason": ing.review_reason
+                }
+                for ing in recipe.ingredients
+            ]
+        }
+    }
 
 @router.patch("/{recipe_id}")
 def update_recipe(

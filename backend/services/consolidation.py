@@ -1,9 +1,9 @@
 # backend/services/consolidation.py
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from backend.models import Ingredient, Recipe as RecipeRow
-# Assuming consolidate_ingredients & IngredientInput live in your engine/library:
 from backend.consolidation_engine import consolidate_ingredients, IngredientInput
 from backend.services.store_router import StoreRouter
 
@@ -12,34 +12,32 @@ def build_consolidated_list(
     recipe_ids: Optional[List[int]] = None
 ) -> List[Dict[str, Any]]:
     """
-    Fetches raw ingredients, runs consolidation, attaches recipe provenance,
+    Fetches raw ingredients, runs consolidation, flattens fields into clean strings,
     and assigns target stores.
     """
-    query = session.query(Ingredient)
+    stmt = select(Ingredient)
     if recipe_ids:
-        query = query.filter(Ingredient.recipe_id.in_(recipe_ids))
+        stmt = stmt.where(Ingredient.recipe_id.in_(recipe_ids))
     
-    raw_ingredients = query.all()
+    raw_ingredients = session.scalars(stmt).all()
     if not raw_ingredients:
         return []
 
-    # Map database rows to consolidation engine inputs
     input_list = [
         IngredientInput(
             id=ing.id,
             raw_name=ing.raw_name,
             quantity=ing.quantity,
             unit=ing.unit,
-            needs_manual_review=getattr(ing, "needs_manual_review", False),
-            review_reason=getattr(ing, "review_reason", None),
+            needs_manual_review=ing.needs_manual_review,
+            review_reason=ing.review_reason,
         )
         for ing in raw_ingredients
     ]
 
     consolidated = consolidate_ingredients(input_list)
 
-    # Build recipe lookup table for provenance
-    recipes = session.query(RecipeRow).all()
+    recipes = session.scalars(select(RecipeRow)).all()
     recipe_map = {r.id: r.title for r in recipes}
     ing_to_recipe = {
         ing.id: recipe_map.get(ing.recipe_id, "Unknown Recipe") 
@@ -48,27 +46,36 @@ def build_consolidated_list(
 
     output = []
     for idx, item in enumerate(consolidated):
-        item_id = getattr(item, "id", idx + 1)
-        name = getattr(item, "canonical_name", None) or getattr(item, "raw_name", None) or str(item)
-        qty = getattr(item, "quantity", None)
-        unit = getattr(item, "unit", "") or ""
-        cat = getattr(item, "category", "pantry") or "pantry"
+        # Safely extract values whether item is a dict or an object
+        if isinstance(item, dict):
+            name = item.get("canonical_name") or item.get("raw_name") or "Unknown Item"
+            qty = item.get("quantity")
+            unit = item.get("unit") or ""
+            cat = item.get("category") or "pantry"
+            source_ids = item.get("source_ingredient_ids", [idx + 1])
+        else:
+            name = getattr(item, "canonical_name", None) or getattr(item, "raw_name", None) or "Unknown Item"
+            qty = getattr(item, "quantity", None)
+            unit = getattr(item, "unit", "") or ""
+            cat = getattr(item, "category", "pantry") or "pantry"
+            source_ids = getattr(item, "source_ingredient_ids", [idx + 1])
 
-        # Resolve store mapping using the StoreRouter service
-        assigned_store = StoreRouter.assign_store(name, cat)
+        assigned_store = StoreRouter.assign_store(str(name), str(cat))
 
-        # Resolve recipe provenance
-        source_ids = getattr(item, "source_ingredient_ids", [item_id])
         recipe_titles = list({ing_to_recipe.get(sid) for sid in source_ids if sid in ing_to_recipe})
 
-        qty_str = f"{qty} {unit}".strip() if qty is not None else None
+        # Format quantity cleanly as a readable string
+        if qty is not None:
+            qty_str = f"{qty} {unit}".strip()
+        else:
+            qty_str = unit.strip() if unit else None
 
         output.append({
-            "id": item_id,
-            "canonical_name": name,
+            "id": idx + 1,
+            "canonical_name": str(name).strip(),
             "quantity_display": qty_str,
-            "category": cat,
-            "assigned_store": assigned_store,
+            "category": str(cat).upper().strip(),
+            "assigned_store": str(assigned_store).strip(),
             "recipes": recipe_titles
         })
 
