@@ -1,9 +1,8 @@
-# backend/services/consolidation.py
 from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 
-from backend.models import Ingredient, Recipe as RecipeRow
+from backend.models import Ingredient, Recipe as RecipeRow, CanonicalIngredient, Store
 from backend.consolidation_engine import consolidate_ingredients, IngredientInput
 from backend.services.store_router import StoreRouter
 
@@ -12,10 +11,13 @@ def build_consolidated_list(
     recipe_ids: Optional[List[int]] = None
 ) -> List[Dict[str, Any]]:
     """
-    Fetches raw ingredients, runs consolidation, flattens fields into clean strings,
-    and assigns target stores.
+    Fetches raw ingredients with their canonical links, runs consolidation,
+    respects database-driven store defaults and categories, and attaches provenance.
     """
-    stmt = select(Ingredient)
+    # Eager-load canonical ingredient and its default store relationship
+    stmt = select(Ingredient).options(
+        selectinload(Ingredient.canonical_ingredient).selectinload(CanonicalIngredient.default_store)
+    )
     if recipe_ids:
         stmt = stmt.where(Ingredient.recipe_id.in_(recipe_ids))
     
@@ -39,32 +41,66 @@ def build_consolidated_list(
 
     recipes = session.scalars(select(RecipeRow)).all()
     recipe_map = {r.id: r.title for r in recipes}
-    ing_to_recipe = {
-        ing.id: recipe_map.get(ing.recipe_id, "Unknown Recipe") 
-        for ing in raw_ingredients
-    }
+    
+    # Map ingestion IDs to canonical metadata and recipes
+    ing_meta_map = {}
+    for ing in raw_ingredients:
+        recipe_title = recipe_map.get(ing.recipe_id, "Unknown Recipe")
+        
+        canon = ing.canonical_ingredient
+        is_dirty = canon.dirty_dozen if canon else False
+        org_considerations = canon.organic_considerations if canon else []
+        
+        # [UPDATED: Read category directly from database CanonicalIngredient, defaulting to GENERAL instead of pantry]
+        category = "GENERAL"
+        if canon and canon.category:
+            category = canon.category
+
+        # Determine store: Database default store takes precedence over StoreRouter fallback
+        assigned_store = None
+        if canon and canon.default_store:
+            assigned_store = canon.default_store.name
+        else:
+            name_val = canon.name if canon and canon.name else ing.raw_name
+            assigned_store = StoreRouter.assign_store(name_val, category)
+
+        ing_meta_map[ing.id] = {
+            "recipe_title": recipe_title,
+            "dirty_dozen": is_dirty,
+            "organic_considerations": org_considerations,
+            "assigned_store": assigned_store,
+            "category": category
+        }
 
     output = []
     for idx, item in enumerate(consolidated):
-        # Safely extract values whether item is a dict or an object
-        if isinstance(item, dict):
-            name = item.get("canonical_name") or item.get("raw_name") or "Unknown Item"
-            qty = item.get("quantity")
-            unit = item.get("unit") or ""
-            cat = item.get("category") or "pantry"
-            source_ids = item.get("source_ingredient_ids", [idx + 1])
-        else:
-            name = getattr(item, "canonical_name", None) or getattr(item, "raw_name", None) or "Unknown Item"
-            qty = getattr(item, "quantity", None)
-            unit = getattr(item, "unit", "") or ""
-            cat = getattr(item, "category", "pantry") or "pantry"
-            source_ids = getattr(item, "source_ingredient_ids", [idx + 1])
+        # [UPDATED: Removed defensive isinstance/getattr hedging. 
+        # consolidation_engine strictly returns uniform dictionaries.]
+        name = item.get("canonical_name") or item.get("raw_name") or "Unknown Item"
+        qty = item.get("quantity")
+        unit = item.get("unit") or ""
+        source_ids = item.get("source_ingredient_ids", [idx + 1])
 
-        assigned_store = StoreRouter.assign_store(str(name), str(cat))
+        # Aggregate recipe titles and flags across consolidated source items
+        recipe_titles = set()
+        is_dirty_dozen = False
+        organic_notes = []
+        assigned_store = StoreRouter.assign_store(str(name), "GENERAL")
+        category = "GENERAL"
 
-        recipe_titles = list({ing_to_recipe.get(sid) for sid in source_ids if sid in ing_to_recipe})
+        for sid in source_ids:
+            if sid in ing_meta_map:
+                meta = ing_meta_map[sid]
+                recipe_titles.add(meta["recipe_title"])
+                if meta["dirty_dozen"]:
+                    is_dirty_dozen = True
+                if meta["organic_considerations"]:
+                    organic_notes.extend(meta["organic_considerations"])
+                if meta["assigned_store"]:
+                    assigned_store = meta["assigned_store"]
+                if meta["category"]:
+                    category = meta["category"]
 
-        # Format quantity cleanly as a readable string
         if qty is not None:
             qty_str = f"{qty} {unit}".strip()
         else:
@@ -74,9 +110,11 @@ def build_consolidated_list(
             "id": idx + 1,
             "canonical_name": str(name).strip(),
             "quantity_display": qty_str,
-            "category": str(cat).upper().strip(),
+            "category": str(category).upper().strip(),
             "assigned_store": str(assigned_store).strip(),
-            "recipes": recipe_titles
+            "recipes": list(recipe_titles),
+            "dirty_dozen": is_dirty_dozen,
+            "organic_considerations": list(set(organic_notes))
         })
 
     return output

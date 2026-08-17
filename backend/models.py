@@ -34,9 +34,7 @@ class Recipe(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str]
     source: Mapped[Optional[str]]
-    steps: Mapped[Optional[str]]
-    
-    # NEW FIELDS:
+    steps: Mapped[Optional[str]]    
     yield_info: Mapped[Optional[str]]
     prep_time: Mapped[Optional[str]]
     cook_time: Mapped[Optional[str]]
