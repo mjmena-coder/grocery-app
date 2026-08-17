@@ -61,6 +61,6 @@ def test_build_consolidated_list_with_items(mock_consolidate, session):
     item = result[0]
     assert item["canonical_name"] == "spinach"
     assert item["quantity_display"] == "2.0 cup"
-    assert item["category"] == "produce"
+    assert item["category"] == "PRODUCE"
     assert item["assigned_store"] == "Whole Foods"  # Keyword 'spinach' routes to Whole Foods via StoreRouter
     assert item["recipes"] == ["Green Smoothie"]

@@ -72,3 +72,16 @@ class Ingredient(Base):
 
     recipe: Mapped["Recipe"] = relationship(back_populates="ingredients")
     canonical_ingredient: Mapped[Optional["CanonicalIngredient"]] = relationship()
+
+
+class GroceryItem(Base):
+    __tablename__ = "grocery_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    canonical_name: Mapped[str]
+    quantity_display: Mapped[Optional[str]]
+    category: Mapped[Optional[str]]
+    assigned_store: Mapped[str]
+    recipes: Mapped[list] = mapped_column(JSON, default=list)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    is_checked: Mapped[bool] = mapped_column(default=False)
