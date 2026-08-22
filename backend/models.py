@@ -34,9 +34,7 @@ class Recipe(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str]
     source: Mapped[Optional[str]]
-    steps: Mapped[Optional[str]]
-    
-    # NEW FIELDS:
+    steps: Mapped[Optional[str]]    
     yield_info: Mapped[Optional[str]]
     prep_time: Mapped[Optional[str]]
     cook_time: Mapped[Optional[str]]
@@ -63,6 +61,7 @@ class Ingredient(Base):
     raw_name: Mapped[str]
     quantity: Mapped[Optional[float]]
     unit: Mapped[Optional[str]]
+    size_descriptor: Mapped[Optional[str]]  # 👈 NEW FIELD (e.g., "1-inch")
     comment: Mapped[Optional[str]]
     needs_manual_review: Mapped[bool] = mapped_column(default=False)
     review_reason: Mapped[Optional[str]]

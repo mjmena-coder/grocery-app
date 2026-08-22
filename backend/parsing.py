@@ -54,7 +54,7 @@ def _amount_to_quantity_unit(amounts: list) -> tuple[Optional[float], Optional[s
 
 def parse_ingredient_line(line: str) -> dict:
     """
-    Parse a single OCR'd ingredient line into quantity/unit/name/comment
+    Parse a single VLM'd ingredient line into quantity/unit/name/comment
     via ingredient-parser-nlp. Any exception, missing name, multiple
     candidate names, or multiple parsed amounts is flagged for manual
     review rather than guessed at -- mirrors the ingredient_slicer

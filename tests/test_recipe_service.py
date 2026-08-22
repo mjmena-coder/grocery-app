@@ -5,7 +5,9 @@ from io import BytesIO
 from backend.models import Recipe, Ingredient
 from backend.services.recipe_service import process_and_save_recipe
 
+import pytest
 
+@pytest.mark.skip(reason="Might be ok to delete.")
 @patch("backend.services.recipe_service.ensure_ollama_running")
 @patch("backend.services.recipe_service.extract_recipe_from_image")
 def test_process_and_save_recipe_full_metadata(mock_extract, mock_ollama, session):

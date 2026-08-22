@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from backend.database import get_session
 from backend.services.consolidation import build_consolidated_list
-from backend.models import GroceryItem
+from backend.models import GroceryItem, Store, CanonicalIngredient
 
 router = APIRouter(prefix="/grocery-list", tags=["Grocery List"])
 

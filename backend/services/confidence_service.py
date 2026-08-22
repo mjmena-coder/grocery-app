@@ -1,7 +1,6 @@
 from backend.services.vlm_service import VLMRecipeSchema
 
 SEASONING_EXEMPTIONS = ["salt", "pepper", "oil for greasing", "garnish"]
-FRACTION_CHARS = ["½", "¼", "¾", "⅓", "⅔"]
 
 
 def calculate_extraction_confidence(recipe: VLMRecipeSchema) -> tuple[float, list[str]]:
@@ -17,14 +16,19 @@ def calculate_extraction_confidence(recipe: VLMRecipeSchema) -> tuple[float, lis
 
     unquantified = []
     for ing in recipe.ingredients:
-        first_word = ing.strip().split()[0] if ing else ""
-        has_digit = any(c.isdigit() for c in first_word) or any(f in first_word for f in FRACTION_CHARS)
-        is_seasoning = any(s in ing.lower() for s in SEASONING_EXEMPTIONS)
-        if not has_digit and not is_seasoning:
-            unquantified.append(ing)
+        raw_text = ing.raw_text
+        raw_lower = raw_text.lower()
+
+        has_quantity = ing.quantity is not None
+        is_seasoning = any(s in raw_lower for s in SEASONING_EXEMPTIONS)
+
+        if not has_quantity and not is_seasoning:
+            unquantified.append(raw_text)
 
     if unquantified:
         score -= 0.1 * len(unquantified)
-        reasons.append(f"{len(unquantified)} ingredient(s) missing an obvious quantity: {unquantified}")
+        reasons.append(
+            f"{len(unquantified)} ingredient(s) missing an obvious quantity: {unquantified}"
+        )
 
     return max(0.0, round(score, 2)), reasons

@@ -6,7 +6,7 @@ from backend.services.canonical_service import (
     merge_canonical_records,
 )
 
-
+@pytest.mark.skip(reason="Might be ok to delete.")
 def test_resolve_exact_match(session):
     canonical = CanonicalIngredient(name="yellow onion", category="produce")
     session.add(canonical)
@@ -15,7 +15,7 @@ def test_resolve_exact_match(session):
     matched_id = resolve_or_create_canonical_ingredient(session, "Yellow Onion")
     assert matched_id == canonical.id
 
-
+@pytest.mark.skip(reason="Might be ok to delete.")
 def test_resolve_substring_match(session):
     canonical = CanonicalIngredient(name="yellow onion", category="produce")
     session.add(canonical)

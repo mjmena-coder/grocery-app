@@ -3,6 +3,8 @@ from sqlalchemy import select, func, update
 from sqlalchemy.orm import Session
 
 from backend.models import CanonicalIngredient, Ingredient
+from backend.services.vlm_service import ParsedIngredientSchema
+from backend.services.canonical_catalog import resolve_canonical_category, CANONICAL_SEED_CATALOG
 
 
 def resolve_or_create_canonical_ingredient(session: Session, raw_name: Optional[str]) -> Optional[int]:
@@ -44,6 +46,44 @@ def resolve_or_create_canonical_ingredient(session: Session, raw_name: Optional[
         name=cleaned_name,
         category="General",  # Default category or pass through if available
         dirty_dozen=False
+    )
+    session.add(new_canonical)
+    session.flush()  # Flushes to database immediately so new_canonical.id is generated
+    
+    return new_canonical.id
+
+
+def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optional[ParsedIngredientSchema]) -> Optional[int]:
+    """
+    Attempts to match a parsed ingredient's canon name against existing 
+    CanonicalIngredient records. If none is found, auto-creates a new one.
+    """
+    canonical_name = ingredient.canonical_name
+    if not canonical_name:
+        return None
+
+    category, is_dirty = resolve_canonical_category(
+            name=ingredient.canonical_name, # Using canonical name instead of cleaned_name, expect already cleaned.
+            raw_text=ingredient.raw_text,
+            vlm_category=ingredient.category,
+            vlm_dirty_dozen=ingredient.is_dirty_dozen,
+        )
+
+    # Compare directly to names in CanonicalIngredients.
+    stmt = select(CanonicalIngredient.id).where(
+        func.lower(CanonicalIngredient.name) == canonical_name
+    )
+    canonical_id = session.scalar(stmt)
+    if canonical_id:
+        return canonical_id
+
+    # Create because match not found.
+    new_canonical = CanonicalIngredient(
+        name=canonical_name,
+        category=category,
+        dirty_dozen=is_dirty,
+        organic_considerations=ingredient.organic_considerations
+        # Missing default store id may be needed, may not...
     )
     session.add(new_canonical)
     session.flush()  # Flushes to database immediately so new_canonical.id is generated

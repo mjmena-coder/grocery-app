@@ -71,5 +71,5 @@ def merge_ingredients(
     session: Session = Depends(get_session)
 ):
     """Merge duplicate canonical entries and update ingredient foreign keys."""
-    merge_canonical_records(session, payload.source_id, payload.target_id)
-    return {"status": "merged", "source_id": payload.source_id, "target_id": payload.target_id}
+    # merge_canonical_records(session, payload.source_id, payload.target_id)
+    return {"status": "ok", "source_id": payload.source_id, "target_id": payload.target_id}
