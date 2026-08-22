@@ -2,13 +2,15 @@
 backend/consolidation_engine.py
 
 Consolidates recipe ingredients into a clean, human-friendly grocery list.
-Handles unit normalization via Pint, standardizes item names, and formats quantities.
+Handles unit normalization via Pint, formats quantities into cooking fractions,
+and preserves database traceability and audit review flags.
 """
 
 from dataclasses import dataclass, field
-import re
 from typing import Dict, List, Optional, Tuple
 import pint
+
+from backend.models import Ingredient
 
 # =====================================================================
 # 1. Pint Unit Registry Configuration
@@ -16,7 +18,7 @@ import pint
 
 ureg = pint.UnitRegistry()
 
-# Register custom culinary/count units not natively in Pint
+# Custom culinary/count units required so Pint does not throw UndefinedUnitError
 CUSTOM_UNITS = [
     "clove = [] = cloves",
     "ear = [] = ears",
@@ -30,7 +32,7 @@ CUSTOM_UNITS = [
     "drop = 0.02 * teaspoon = drops",
     "slice = [] = slices",
     "piece = [] = pieces",
-    "stick = 0.5 * cup = sticks",  # 1 stick of butter = 8 tbsp = 0.5 cup
+    "stick = 0.5 * cup = sticks",
 ]
 
 for unit_def in CUSTOM_UNITS:
@@ -39,34 +41,10 @@ for unit_def in CUSTOM_UNITS:
     except pint.errors.RedefinedUnitError:
         pass
 
-# Size adjectives to strip before passing units to Pint
-SIZE_ADJECTIVES = re.compile(
-    r"\b(small|medium|large|extra-large|xl|jumbo|tiny|big)\b", re.IGNORECASE
-)
-
-# Words to strip from raw ingredient names to get canonical names
-PREP_WORDS = re.compile(
-    r"\b(chopped|diced|minced|sliced|peeled|grated|shredded|fresh|cooked|raw|"
-    r"frozen|canned|drained|rinsed|halved|quartered|cubed|crushed|ground|"
-    r"flat-leaf|flat-leaves|flat leaf|flat leaves|curly)\b",
-    re.IGNORECASE,
-)
-
 
 # =====================================================================
 # 2. Data Models
 # =====================================================================
-
-
-@dataclass
-class IngredientInput:
-    id: int
-    raw_name: str
-    quantity: Optional[float]
-    unit: Optional[str]
-    needs_manual_review: bool = False
-    review_reason: Optional[str] = None
-
 
 @dataclass
 class ConsolidatedGroup:
@@ -77,153 +55,157 @@ class ConsolidatedGroup:
     )
     count_quantities: Dict[str, float] = field(default_factory=dict)
     no_qty_items: List[int] = field(default_factory=list)
-    modifiers: set = field(default_factory=set)
     needs_manual_review: bool = False
     review_reasons: List[str] = field(default_factory=list)
 
 
 # =====================================================================
-# 3. Text Normalization & Unit Cleaning
+# 3. Helpers & Fraction Formatting
 # =====================================================================
 
-
-def _normalize_name(name: str) -> str:
-    """Normalizes raw ingredient names for canonical matching."""
-    cleaned = PREP_WORDS.sub("", name.lower())
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned if cleaned else name.lower().strip()
-
-
-def _clean_unit_str(unit_str: str) -> Tuple[str, str]:
-    """
-    Separates size adjectives from units for Pint lookups.
-    Example: 'large cloves' -> ('cloves', 'large')
-    """
-    match = SIZE_ADJECTIVES.search(unit_str)
-    modifier = match.group(0).lower() if match else ""
-    cleaned_unit = SIZE_ADJECTIVES.sub("", unit_str).strip()
-    return (cleaned_unit if cleaned_unit else unit_str), modifier
+def _get_canonical_name(ingredient: Ingredient) -> str:
+    """Prefers DB canonical_name; falls back to trimmed lower raw_name."""
+    if getattr(ingredient, "canonical_ingredient", None):
+        return ingredient.canonical_ingredient.name.strip().lower()
+    return ingredient.raw_name.strip().lower()
 
 
-def _parse_pint_quantity(quantity: float, unit: str) -> Optional[pint.Quantity]:
-    """Attempts to convert quantity + unit string into a Pint Quantity."""
-    clean_unit, _ = _clean_unit_str(unit)
-    try:
-        return quantity * ureg(clean_unit)
-    except (pint.errors.UndefinedUnitError, AttributeError):
-        return None
+def _format_quantity_value(val: float) -> str:
+    """Converts floats to clean mixed fractions including eighths."""
+    if val <= 0:
+        return ""
+    
+    whole = int(val)
+    remainder = val - whole
+    
+    if remainder < 0.08:
+        frac_str = ""
+    elif remainder < 0.19:
+        frac_str = "1/8"
+    elif remainder < 0.29:
+        frac_str = "1/4"
+    elif remainder < 0.355:
+        frac_str = "1/3"
+    elif remainder < 0.437:
+        frac_str = "3/8"
+    elif remainder < 0.562:
+        frac_str = "1/2"
+    elif remainder < 0.645:
+        frac_str = "5/8"
+    elif remainder < 0.71:
+        frac_str = "2/3"
+    elif remainder < 0.812:
+        frac_str = "3/4"
+    elif remainder < 0.937:
+        frac_str = "7/8"
+    else:
+        whole += 1
+        frac_str = ""
+
+    if whole > 0 and frac_str:
+        return f"{whole} {frac_str}"
+    elif whole > 0:
+        return str(whole)
+    return frac_str if frac_str else "1"
 
 
-# =====================================================================
-# 4. Quantity Formatting & Thresholding
-# =====================================================================
-
-
-def _format_volume(ml_val: float) -> Tuple[float, str]:
-    """Converts volume in mL to human-friendly cooking units."""
+def _format_volume(ml_val: float) -> Tuple[float, str, str]:
+    """Converts mL to human-friendly cooking units and fraction text."""
     qty = ml_val * ureg.milliliter
 
-    # Less than 3 tbsp (45 ml) -> Display in teaspoons / tablespoons
-    if ml_val < 45.0:
+    # Keep items under 1/2 cup (118 mL / 8 tbsp) in tablespoons/teaspoons
+    if ml_val < 118.0:
         tbsp = qty.to("tablespoon").magnitude
         if tbsp < 1.0:
-            tsp = round(qty.to("teaspoon").magnitude, 2)
-            return (tsp, "teaspoon" if tsp == 1.0 else "teaspoons")
-        tbsp_rounded = round(tbsp, 2)
-        return (tbsp_rounded, "tablespoon" if tbsp_rounded == 1.0 else "tablespoons")
+            tsp = qty.to("teaspoon").magnitude
+            unit_str = "teaspoon" if round(tsp, 2) == 1.0 else "teaspoons"
+            return (round(tsp, 2), unit_str, f"{_format_quantity_value(tsp)} {unit_str}".strip())
+        
+        unit_str = "tablespoon" if round(tbsp, 2) == 1.0 else "tablespoons"
+        return (round(tbsp, 2), unit_str, f"{_format_quantity_value(tbsp)} {unit_str}".strip())
 
-    # 45 mL or more -> Display in cups
-    cups = round(qty.to("cup").magnitude, 2)
-    return (cups, "cup" if cups == 1.0 else "cups")
+    cups = qty.to("cup").magnitude
+    unit_str = "cup" if round(cups, 2) == 1.0 else "cups"
+    return (round(cups, 2), unit_str, f"{_format_quantity_value(cups)} {unit_str}".strip())
 
 
-def _format_mass(g_val: float) -> Tuple[float, str]:
-    """Converts mass in grams to human-friendly cooking units."""
+def _format_mass(g_val: float) -> Tuple[float, str, str]:
+    """Converts grams to human-friendly cooking units and fraction text."""
     qty = g_val * ureg.gram
-    # 454g ~ 1 lb
+    
     if g_val >= 450.0:
-        lbs = round(qty.to("pound").magnitude, 2)
-        return (lbs, "pound" if lbs == 1.0 else "pounds")
+        lbs = qty.to("pound").magnitude
+        unit_str = "pound" if round(lbs, 2) == 1.0 else "pounds"
+        return (round(lbs, 2), unit_str, f"{_format_quantity_value(lbs)} {unit_str}".strip())
 
-    oz = round(qty.to("ounce").magnitude, 2)
-    return (oz, "ounce" if oz == 1.0 else "ounces")
+    oz = qty.to("ounce").magnitude
+    unit_str = "ounce" if round(oz, 2) == 1.0 else "ounces"
+    return (round(oz, 2), unit_str, f"{_format_quantity_value(oz)} {unit_str}".strip())
 
 
 # =====================================================================
-# 5. Core Consolidation Engine
+# 4. Core Consolidation Engine
 # =====================================================================
 
-
-def consolidate_ingredients(
-    ingredients: List[IngredientInput],
-) -> List[Dict]:
+def consolidate_ingredients(ingredients: List[Ingredient]) -> List[Dict]:
     """
-    Main entry point: Aggregates a list of ingredients into a consolidated grocery list.
+    Main entry point: Aggregates ingredients into a consolidated grocery list.
     """
     groups: Dict[str, ConsolidatedGroup] = {}
 
-    for ing in ingredients:
-        canonical = _normalize_name(ing.raw_name)
+    for ingredient in ingredients:
+        canonical = _get_canonical_name(ingredient)
 
         if canonical not in groups:
+            # Create new item in consolidated group.
             groups[canonical] = ConsolidatedGroup(canonical_name=canonical)
 
         grp = groups[canonical]
-        grp.source_ingredient_ids.append(ing.id)
+        if hasattr(ingredient, "id") and ingredient.id is not None:
+            grp.source_ingredient_ids.append(ingredient.id)
 
-        # Retain upstream manual review flags (e.g., OCR or ambiguity flags)
-        if ing.needs_manual_review:
+        # Preserve upstream audit/review flags
+        if getattr(ingredient, "needs_manual_review", False):
             grp.needs_manual_review = True
-            if ing.review_reason and ing.review_reason not in grp.review_reasons:
-                grp.review_reasons.append(ing.review_reason)
+            reason = getattr(ingredient, "review_reason", None)
+            if reason and reason not in grp.review_reasons:
+                grp.review_reasons.append(reason)
 
-        # Case 1: No quantity provided
-        if ing.quantity is None:
-            grp.no_qty_items.append(ing.id)
-            continue
+        # Case 1: Zero quantity / "to taste" items
+        if ingredient.quantity is None:
+            if hasattr(ingredient, "id") and ingredient.id is not None:
+                grp.no_qty_items.append(ingredient.id)
+            continue # serves as a break, next ingredient.
 
-        # Case 2: Quantity provided without unit (Count items e.g., "2 cucumbers")
-        if not ing.unit:
+        # Case 2: Unspecified unit (discrete count)
+        if not ingredient.unit:
             grp.count_quantities[""] = (
-                grp.count_quantities.get("", 0.0) + ing.quantity
+                grp.count_quantities.get("", 0.0) + ingredient.quantity
             )
-            continue
+            continue # serves as a break, next ingredient.
 
-        # Extract size adjectives (e.g., 'large' from 'large cloves')
-        clean_unit, modifier = _clean_unit_str(ing.unit)
-        if modifier:
-            grp.modifiers.add(modifier)
+        unit_str = ingredient.unit.strip().lower()
 
-        pint_qty = _parse_pint_quantity(ing.quantity, clean_unit)
-
-        # Case 3: Unit not recognized by Pint -> Treat as count unit
-        if pint_qty is None:
-            grp.count_quantities[ing.unit] = (
-                grp.count_quantities.get(ing.unit, 0.0) + ing.quantity
-            )
-            continue
-
-        # Case 4: Standard Pint unit -> Convert to base metric for aggregation
+        # Case 3: Parse unit directly with Pint
         try:
+            pint_qty = ingredient.quantity * ureg(unit_str)
             if pint_qty.check("[volume]"):
-                ml = pint_qty.to("milliliter").magnitude
-                grp.quantities_by_dimension["volume_ml"] += ml
+                grp.quantities_by_dimension["volume_ml"] += pint_qty.to("milliliter").magnitude
             elif pint_qty.check("[mass]"):
-                grams = pint_qty.to("gram").magnitude
-                grp.quantities_by_dimension["mass_g"] += grams
+                grp.quantities_by_dimension["mass_g"] += pint_qty.to("gram").magnitude
             else:
-                # Custom discrete unit (cloves, ears, slices, etc.)
-                unit_name = str(pint_qty.units)
-                grp.count_quantities[unit_name] = (
-                    grp.count_quantities.get(unit_name, 0.0) + ing.quantity
+                # Some other quantity that is not volume or mass.
+                u_name = str(pint_qty.units)
+                grp.count_quantities[u_name] = (
+                    grp.count_quantities.get(u_name, 0.0) + ingredient.quantity
                 )
         except Exception:
-            grp.count_quantities[ing.unit] = (
-                grp.count_quantities.get(ing.unit, 0.0) + ing.quantity
+            grp.count_quantities[unit_str] = (
+                grp.count_quantities.get(unit_str, 0.0) + ingredient.quantity
             )
 
     # =====================================================================
-    # 6. Formatting Consolidated Output
+    # 5. Output Construction
     # =====================================================================
 
     output = []
@@ -233,50 +215,40 @@ def consolidate_ingredients(
         out_unit: Optional[str] = None
         display_parts = []
 
-        # 1. Volume
+        # 1. Volume aggregation
         vol_ml = grp.quantities_by_dimension["volume_ml"]
         if vol_ml > 0:
-            out_quantity, out_unit = _format_volume(vol_ml)
-            display_parts.append(f"{out_quantity} {out_unit}")
+            qty_val, unit_name, display_str = _format_volume(vol_ml)
+            out_quantity, out_unit = qty_val, unit_name
+            display_parts.append(display_str)
 
-        # 2. Mass
+        # 2. Mass aggregation
         mass_g = grp.quantities_by_dimension["mass_g"]
         if mass_g > 0:
-            qty, unit = _format_mass(mass_g)
-            out_quantity = qty if out_quantity is None else out_quantity
-            out_unit = unit if out_unit is None else out_unit
-            display_parts.append(f"{qty} {unit}")
+            qty_val, unit_name, display_str = _format_mass(mass_g)
+            out_quantity = qty_val if out_quantity is None else out_quantity
+            out_unit = unit_name if out_unit is None else out_unit
+            display_parts.append(display_str)
 
-        # 3. Discrete Counts / Custom Units
+        # 3. Discrete count items
         for u_name, count_val in grp.count_quantities.items():
-            count_val = round(count_val, 2)
             out_quantity = count_val if out_quantity is None else out_quantity
-
-            # Re-attach preserved modifiers (e.g., '2.0 large cloves')
-            mod_prefix = f"{' '.join(sorted(grp.modifiers))} " if grp.modifiers else ""
+            formatted_count = _format_quantity_value(count_val)
 
             if u_name:
-                # Pluralize discrete custom units when quantity > 1.0
-                # (e.g., '1.0 large clove' vs '2.0 large cloves')
-                unit_str = u_name
-                if count_val > 1.0 and not unit_str.endswith("s"):
-                    unit_str = f"{unit_str}s"
-
-                unit_disp = f"{mod_prefix}{unit_str}".strip()
-                out_unit = unit_disp if out_unit is None else out_unit
-                display_parts.append(f"{count_val} {unit_disp}")
+                u_display = u_name if count_val <= 1.0 or u_name.endswith("s") else f"{u_name}s" # Plurify.
+                out_unit = u_display if out_unit is None else out_unit # If vol or mass, use its unit
+                display_parts.append(f"{formatted_count} {u_display}".strip())
             else:
-                out_unit = f"{mod_prefix}".strip() if mod_prefix else None
-                display_parts.append(f"{count_val} {mod_prefix}".strip())
+                display_parts.append(formatted_count)
 
         # Construct final display string
         if display_parts:
             formatted_qty_str = " + ".join(display_parts)
-            display_text = f"{formatted_qty_str} {grp.canonical_name}".strip()
+            display_text = f"{formatted_qty_str}".strip()
         else:
             display_text = grp.canonical_name.capitalize()
 
-        # Build review reason string if flagged
         review_reason = (
             "; ".join(grp.review_reasons) if grp.needs_manual_review else None
         )

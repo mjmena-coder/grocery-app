@@ -19,6 +19,7 @@ CANONICAL_SEED_CATALOG: dict[str, Tuple[str, bool]] = {
     "bell pepper": ("PRODUCE", True),
     "apples": ("PRODUCE", True),
     "grapes": ("PRODUCE", True),
+    "ginger": ("PRODUCE", True),
     
     # PANTRY & SPICES
     "cumin": ("PANTRY", False),
@@ -43,6 +44,7 @@ CANONICAL_SEED_CATALOG: dict[str, Tuple[str, bool]] = {
     "pork chop": ("MEAT", False),
     "salmon": ("MEAT", False),
     "shrimp": ("MEAT", False),
+    "chuck": ("MEAT", False),
     
     # DAIRY
     "butter": ("DAIRY", False),
@@ -92,6 +94,7 @@ def resolve_canonical_category(
     if any(kw in clean_name or kw in clean_raw for kw in PANTRY_OVERRIDE_KEYWORDS):
         return "PANTRY", False
 
+    print(f"Ingredient: {name} | VLM Category: {vlm_category}")
     # 4. Fallback to VLM category if valid and not GENERAL
     if vlm_category and vlm_category.upper() not in {"GENERAL", "UNKNOWN"}:
         return vlm_category.upper(), vlm_dirty_dozen

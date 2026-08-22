@@ -63,7 +63,7 @@ def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optiona
         return None
 
     category, is_dirty = resolve_canonical_category(
-            name=ingredient.canonical_name, # Using canonical name isntead of cleaned_name, expect already cleaned.
+            name=ingredient.canonical_name, # Using canonical name instead of cleaned_name, expect already cleaned.
             raw_text=ingredient.raw_text,
             vlm_category=ingredient.category,
             vlm_dirty_dozen=ingredient.is_dirty_dozen,

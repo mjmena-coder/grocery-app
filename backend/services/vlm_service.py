@@ -25,18 +25,16 @@ class ParsedIngredientSchema(BaseModel):
     unit: Optional[str] = Field(
         None, description="Standardized measurement unit (e.g., 'cup', 'tbsp', 'clove', 'oz'), or null for count items"
     )
+    size_descriptor: Optional[str] = Field(
+        None, 
+        description="Physical size, length, or dimensional descriptor (e.g., '1-inch', 'large', 'medium', '3-cm'), or null if absent"
+    )
+    comment: Optional[str] = Field(
+            None, description="Preparation notes, quality adjectives, or state (e.g., 'finely chopped', 'fresh', 'peeled and grated'), or null if absent"
+    )
     category: str = Field(
         "General",
-        description=(
-            "Grocery department category. Rules:\n"
-            "- Produce: Fresh vegetables, fruits, fresh herbs, garlic, onions, fresh olives.\n"
-            "- Pantry: Spices, dried seasonings (paprika, cumin), oils, vinegars, canned/jarred goods, baking items.\n"
-            "- Meat: Fresh or frozen raw/cooked animal proteins (beef, chicken, pork, turkey, bacon, sausage).\n"
-            "- Dairy: Milk, butter, cheeses, yogurt, eggs.\n"
-            "- Frozen: Items in the freezer section.\n"
-            "- Bakery: Fresh bread, pastries.\n"
-            "- General: Non-food items or unclassifiable goods."
-        )
+        description="Must be strictly one of: PRODUCE, PANTRY, MEAT, DAIRY, FROZEN, BAKERY, GENERAL."
     )
     is_dirty_dozen: bool = Field(
         False,
@@ -66,14 +64,22 @@ EXTRACTION_PROMPT = """Analyze this cookbook page image and extract structured J
 Instructions:
 1. Extract Title, Yield, Prep Time, Cook Time, Steps, and Notes.
 2. For each ingredient:
-   - raw_text: preserve full line context (e.g., '1/2 cup extra-virgin olive oil').
-   - canonical_name: extract lowercased base noun (e.g. 'olive oil', 'garlic', 'chicken breast').
-   - quantity: convert fractions or whole numbers to float (e.g., '1 1/2' -> 1.5).
-   - unit: isolate unit string (e.g., 'cup', 'clove', 'g', 'oz', 'tbsp').
-   - category: assign to PRODUCE, MEAT, DAIRY, BAKERY, FROZEN, PANTRY, or GENERAL.
+   - raw_text: preserve full line context (e.g., '2 cups greens, finely chopped').
+   - canonical_name: extract lowercased base noun (e.g. 'basil', 'ginger').
+   - quantity: convert fractions or whole numbers to float (e.g., 2.0).
+   - unit: isolate STRICT measurement units ONLY (e.g., 'cup', 'tbsp', 'clove', 'oz', 'piece'). NEVER include prep words like 'chopped' or adjectives like 'fresh'.
+   - size_descriptor: extract ONLY physical size/dimensions (e.g., '1-inch', 'large', 'medium', '3-cm'). NEVER include prep actions like 'chopped', 'diced', 'minced', 'grated'.
+   - comment: place all prep instructions, quality notes, and state descriptions here (e.g., 'finely chopped', 'fresh', 'peeled and grated').
    - is_dirty_dozen: mark true for high-pesticide produce items (spinach, strawberries, kale, grapes, apples, peppers, etc.).
    - is organic_considerations: mark true for items that should be considered bought organic (pregnancy or general health reasons).
-3. Multi-column / wrapped ingredients: reassemble broken lines into clean strings before parsing.
+   - category: MUST be classified into EXACTLY one of these options:
+       * PRODUCE: Fresh vegetables, fruits, fresh herbs, root crops, squash (e.g., 'tomato', 'celery', 'basil', 'yuca', 'corn', 'chayote', 'plantain', 'cabbage', 'squash').
+       * PANTRY: Oils, vinegars, dried spices/herbs, seeds, sauces, canned goods, broths, seasonings (e.g., 'soy sauce', 'sesame seeds', 'bay leaf', 'bouillon', 'salt').
+       * MEAT: Fresh/frozen raw or processed meats, poultry, seafood, bacon, sausage.
+       * DAIRY: Milk, butter, cheeses, yogurt, eggs, cream.
+       * FROZEN: Commercial freezer aisle items.
+       * BAKERY: Pre-baked fresh bread, rolls, tortillas.
+       * GENERAL: Tap water, non-food items, or completely unclassifiable goods.3. Multi-column / wrapped ingredients: reassemble broken lines into clean strings before parsing.
 4. Steps: Extract all cooking steps in chronological order.
 5. Sidebar / Notes: Place FODMAP advice or sidebar tips into notes.
 """

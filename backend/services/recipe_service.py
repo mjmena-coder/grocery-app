@@ -61,7 +61,8 @@ def process_and_save_recipe(session: Session, image: UploadFile) -> dict:
             recipe.ingredients.append(Ingredient(
                 raw_name=parsed["raw_name"],                                # Currently done better by parsing, raw_name vs raw_text.
                 quantity=raw_ingredient.quantity,                           # Pull ingredient quantity directly.
-                unit=raw_ingredient.unit,                                   # Both do it, choosing VLM for now.
+                unit=parsed["unit"],                                        # Both do it, VLM halucinates, going with parsed since it uses ingredient_parser_nlp.
+                size_descriptor=raw_ingredient.size_descriptor,             # VLM special.
                 comment=parsed["comment"],                                  # VLM doesn't do anything like this.
                 ambiguous_quantity=parsed.get("ambiguous_quantity", False), # VLM doesn't handle ambiguous quantity atm, just gives you quantity.
                 needs_manual_review=needs_review,                           # VLM doesn't do anything like this right now.
