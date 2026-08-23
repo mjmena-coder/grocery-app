@@ -27,8 +27,19 @@ def build_consolidated_list(
     if not raw_ingredients:
         return []
 
+    raw_ingredients_canonical = []
+    raw_ingredients_staples = []
+    # Separate canonical and kitchen staples ingredients.
+    for ingredient in raw_ingredients:
+        if getattr(ingredient, "canonical_ingredient", None):
+            raw_ingredients_canonical.append(ingredient)
+        else:
+            raw_ingredients_staples.append(ingredient)
+
+    # parse them out seprately.
     # Consolidation engine that does all the ingredient addition and parsing.
-    consolidated = consolidate_ingredients(raw_ingredients)
+    consolidated_canonical = consolidate_ingredients(raw_ingredients_canonical)
+
 
     recipes = session.scalars(select(RecipeRow)).all()
     recipe_map = {r.id: r.title for r in recipes}
@@ -66,7 +77,7 @@ def build_consolidated_list(
         }
     # Finalize output dict of ingredients to be displayed. Go through all ingredients once again.
     output = []
-    for idx, item in enumerate(consolidated):
+    for idx, item in enumerate(consolidated_canonical):
         # The final name will be the canonical name if it exists (which it should), otherwise use the raw name parsed from VLM.
         name = item.get("canonical_name") or item.get("raw_name") or "Unknown Item"
         # Source ID attached to display which recipe the ingredient belongs to.
@@ -81,7 +92,7 @@ def build_consolidated_list(
         size_desc = None
 
         prep_notes = set()
-        # Aggregate metadata and extract size_descriptor across consolidated source items
+        # Aggregate metadata and extract size_descriptor across consolidated_canonical source items
         for sid in source_ids:
             # If there's canonical mapping related to this recipe ingredient (which they should all have).
             if sid in ing_meta_map:

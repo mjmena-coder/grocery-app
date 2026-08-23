@@ -61,12 +61,12 @@ class Ingredient(Base):
     raw_name: Mapped[str]
     quantity: Mapped[Optional[float]]
     unit: Mapped[Optional[str]]
-    size_descriptor: Mapped[Optional[str]]  # 👈 NEW FIELD (e.g., "1-inch")
+    size_descriptor: Mapped[Optional[str]]
+    # needs_canonical: Mapped[bool]
     comment: Mapped[Optional[str]]
     needs_manual_review: Mapped[bool] = mapped_column(default=False)
     review_reason: Mapped[Optional[str]]
     
-    # NEW FIELD:
     ambiguous_quantity: Mapped[bool] = mapped_column(default=False)
 
     recipe: Mapped["Recipe"] = relationship(back_populates="ingredients")
