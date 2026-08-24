@@ -14,7 +14,7 @@ def build_consolidated_list(
     Fetches raw ingredients with their canonical links, runs consolidation,
     respects database-driven store defaults and categories, and attaches provenance.
     """
-    # Eager-load canonical ingredient and its default store relationship
+    # Eager-load canonical ingredient (if it exists) and its default store relationship
     # Currently, canonical service does not take into account store, which is a db object that isn't implemented...
     stmt = select(Ingredient).options(
         selectinload(Ingredient.canonical_ingredient).selectinload(CanonicalIngredient.default_store)
@@ -38,7 +38,11 @@ def build_consolidated_list(
 
     # parse them out seprately.
     # Consolidation engine that does all the ingredient addition and parsing.
+    print("\n--- STAGE 3: FINAL Staples TO ROUTER ---")
+    for item in raw_ingredients_staples:
+        print(f"FINAL DTO -> raw_name: '{item.raw_name} | quantity: '{item.quantity}' ")
     consolidated_canonical = consolidate_ingredients(raw_ingredients_canonical)
+    consolidated_kitchen_staples = consolidate_ingredients(raw_ingredients_staples)
 
 
     recipes = session.scalars(select(RecipeRow)).all()
@@ -78,8 +82,8 @@ def build_consolidated_list(
     # Finalize output dict of ingredients to be displayed. Go through all ingredients once again.
     output = []
     for idx, item in enumerate(consolidated_canonical):
-        # The final name will be the canonical name if it exists (which it should), otherwise use the raw name parsed from VLM.
-        name = item.get("canonical_name") or item.get("raw_name") or "Unknown Item"
+        # The final name will be the name if it exists (which it should), otherwise use the raw name parsed from VLM.
+        name = item.get("name") or item.get("raw_name") or "Unknown Item"
         # Source ID attached to display which recipe the ingredient belongs to.
         source_ids = item.get("source_ingredient_ids", [idx + 1])
 
@@ -94,7 +98,7 @@ def build_consolidated_list(
         prep_notes = set()
         # Aggregate metadata and extract size_descriptor across consolidated_canonical source items
         for sid in source_ids:
-            # If there's canonical mapping related to this recipe ingredient (which they should all have).
+            # If there's canonical mapping related to this recipe ingredient (which they all will have).
             if sid in ing_meta_map:
                 meta = ing_meta_map[sid]
                 recipe_titles.add(meta["recipe_title"])
@@ -130,15 +134,6 @@ def build_consolidated_list(
             elif unit_val:
                 qty_str = unit_val.strip()
 
-        # # 2. Inject size_descriptor into qty_str (e.g. "1 piece" -> "1 (1-inch) piece")
-        # if size_desc and qty_str and size_desc.lower() not in qty_str.lower():
-        #     unit_val = item.get("unit") or ""
-        #     # If unit val exists and found in the qty_str, place size_desc in front of unit_val
-        #     if unit_val and unit_val in qty_str:
-        #         qty_str = qty_str.replace(unit_val, f"{size_desc} {unit_val}", 1)
-        #     else: # If unit_val doesn't exist or not found in qty_str (why is this a condition, expecting to find unit_val in qty_str), then just add size_desc after qty_string
-        #         qty_str = f"{qty_str} ({size_desc})"
-
         output.append({
             "id": idx + 1,
             "canonical_name": str(name).strip(),
@@ -154,4 +149,7 @@ def build_consolidated_list(
     print("\n--- STAGE 3: FINAL DTO TO ROUTER ---")
     for item in output:
         print(f"FINAL DTO -> canonical_name: '{item['canonical_name']}' | quantity_display: '{item['quantity_display']}' | prep_notes: '{item['prep_notes']}'")
+    print("\n--- STAGE 3: FINAL Staples TO ROUTER ---")
+    for item in consolidated_kitchen_staples:
+        print(f"FINAL DTO -> canonical_name: '{item['name']}' | quantity: '{item['quantity']}' | display_text: '{item['display_text']}'")
     return output

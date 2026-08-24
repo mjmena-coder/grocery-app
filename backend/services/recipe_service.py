@@ -50,11 +50,11 @@ def process_and_save_recipe(session: Session, image: UploadFile) -> dict:
             parsed = parse_ingredient_line(raw_ingredient.raw_text)
             review_reason = ""
             needs_review = False
+            canonical_id = None
             # Only create canonical if item name not kitchen staple.
             if KITCHEN_STAPLE_INGREDIENTS.search(parsed["raw_name"]):
                 review_reason = parsed.get("review_reason")
                 needs_review = parsed["needs_manual_review"]
-                continue
             else:
                 canonical_id = resolve_or_create_canonical_ingredient(session, raw_ingredient)
                 if not canonical_id and not needs_review:
