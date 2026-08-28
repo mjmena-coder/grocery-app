@@ -9,6 +9,7 @@ from backend.parsing import parse_ingredient_line
 from backend.services.canonical_service import resolve_or_create_canonical_ingredient
 from backend.services.vlm_service import extract_recipe_from_image
 from backend.services.confidence_service import calculate_extraction_confidence
+from backend.utils.kitchen_staples import KITCHEN_STAPLE_INGREDIENTS
 
 def process_and_save_recipe(session: Session, image: UploadFile) -> dict:
     """
@@ -47,16 +48,19 @@ def process_and_save_recipe(session: Session, image: UploadFile) -> dict:
         # 4. Process each ingredient and link canonical ID
         for raw_ingredient in vlm_recipe.ingredients:
             parsed = parse_ingredient_line(raw_ingredient.raw_text)
-            canonical_id = resolve_or_create_canonical_ingredient(session, raw_ingredient)
+            review_reason = ""
+            needs_review = False
+            canonical_id = None
+            # Only create canonical if item name not kitchen staple.
+            if KITCHEN_STAPLE_INGREDIENTS.search(parsed["raw_name"]):
+                review_reason = parsed.get("review_reason")
+                needs_review = parsed["needs_manual_review"]
+            else:
+                canonical_id = resolve_or_create_canonical_ingredient(session, raw_ingredient)
+                if not canonical_id and not needs_review:
+                    needs_review = True
+                    review_reason = "unlinked ingredient: no matching canonical record found"
 
-            needs_review = parsed["needs_manual_review"]
-            review_reason = parsed.get("review_reason")
-
-            # Flag if parsed fine, but no canonical item was found
-            # TODO: This won't be reached, above was changed to "resolve_or_create_canonical_ingredient".
-            if not canonical_id and not needs_review:
-                needs_review = True
-                review_reason = "unlinked ingredient: no matching canonical record found"
             # TODO: Needs to be cleaned up, there is a mix between parsing vs. VLM quantities.
             recipe.ingredients.append(Ingredient(
                 raw_name=parsed["raw_name"],                                # Currently done better by parsing, raw_name vs raw_text.

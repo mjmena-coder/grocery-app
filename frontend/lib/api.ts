@@ -41,7 +41,7 @@ export function itemStore(item: ConsolidatedItem): string {
 }
 
 export function itemCategory(item: ConsolidatedItem): string {
-  return item.category || "PANTRY"
+  return item.category || "UNASSIGNED"
 }
 
 export function itemChecked(item: ConsolidatedItem): boolean {

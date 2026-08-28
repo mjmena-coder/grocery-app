@@ -61,12 +61,12 @@ class Ingredient(Base):
     raw_name: Mapped[str]
     quantity: Mapped[Optional[float]]
     unit: Mapped[Optional[str]]
-    size_descriptor: Mapped[Optional[str]]  # 👈 NEW FIELD (e.g., "1-inch")
+    size_descriptor: Mapped[Optional[str]]
+    # needs_canonical: Mapped[bool]
     comment: Mapped[Optional[str]]
     needs_manual_review: Mapped[bool] = mapped_column(default=False)
     review_reason: Mapped[Optional[str]]
     
-    # NEW FIELD:
     ambiguous_quantity: Mapped[bool] = mapped_column(default=False)
 
     recipe: Mapped["Recipe"] = relationship(back_populates="ingredients")
@@ -77,10 +77,11 @@ class GroceryItem(Base):
     __tablename__ = "grocery_items"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    canonical_name: Mapped[str]
+    canonical_name: Mapped[str] # TODO: change the name, not always canonical now that kitchen staples live here.
     quantity_display: Mapped[Optional[str]]
     category: Mapped[Optional[str]]
     assigned_store: Mapped[str]
     recipes: Mapped[list] = mapped_column(JSON, default=list)
+    is_kitchen_staple: Mapped[bool] = mapped_column(default=False)
     is_active: Mapped[bool] = mapped_column(default=True)
     is_checked: Mapped[bool] = mapped_column(default=False)

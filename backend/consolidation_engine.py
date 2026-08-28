@@ -48,7 +48,7 @@ for unit_def in CUSTOM_UNITS:
 
 @dataclass
 class ConsolidatedGroup:
-    canonical_name: str
+    name: str
     source_ingredient_ids: List[int] = field(default_factory=list)
     quantities_by_dimension: Dict[str, float] = field(
         default_factory=lambda: {"volume_ml": 0.0, "mass_g": 0.0}
@@ -63,7 +63,7 @@ class ConsolidatedGroup:
 # 3. Helpers & Fraction Formatting
 # =====================================================================
 
-def _get_canonical_name(ingredient: Ingredient) -> str:
+def _get_ingredient_name(ingredient: Ingredient) -> str:
     """Prefers DB canonical_name; falls back to trimmed lower raw_name."""
     if getattr(ingredient, "canonical_ingredient", None):
         return ingredient.canonical_ingredient.name.strip().lower()
@@ -154,13 +154,13 @@ def consolidate_ingredients(ingredients: List[Ingredient]) -> List[Dict]:
     groups: Dict[str, ConsolidatedGroup] = {}
 
     for ingredient in ingredients:
-        canonical = _get_canonical_name(ingredient)
+        name = _get_ingredient_name(ingredient)
 
-        if canonical not in groups:
+        if name not in groups:
             # Create new item in consolidated group.
-            groups[canonical] = ConsolidatedGroup(canonical_name=canonical)
+            groups[name] = ConsolidatedGroup(name=name)
 
-        grp = groups[canonical]
+        grp = groups[name]
         if hasattr(ingredient, "id") and ingredient.id is not None:
             grp.source_ingredient_ids.append(ingredient.id)
 
@@ -210,7 +210,7 @@ def consolidate_ingredients(ingredients: List[Ingredient]) -> List[Dict]:
 
     output = []
 
-    for canonical, grp in groups.items():
+    for name, grp in groups.items():
         out_quantity: Optional[float] = None
         out_unit: Optional[str] = None
         display_parts = []
@@ -247,7 +247,7 @@ def consolidate_ingredients(ingredients: List[Ingredient]) -> List[Dict]:
             formatted_qty_str = " + ".join(display_parts)
             display_text = f"{formatted_qty_str}".strip()
         else:
-            display_text = grp.canonical_name.capitalize()
+            display_text = grp.name.capitalize()
 
         review_reason = (
             "; ".join(grp.review_reasons) if grp.needs_manual_review else None
@@ -255,7 +255,7 @@ def consolidate_ingredients(ingredients: List[Ingredient]) -> List[Dict]:
 
         output.append(
             {
-                "canonical_name": grp.canonical_name,
+                "name": grp.name,
                 "quantity": out_quantity,
                 "unit": out_unit,
                 "display_text": display_text,

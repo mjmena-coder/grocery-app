@@ -4,11 +4,16 @@ import { useEffect, useState } from "react"
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { apiUrl, type ConsolidatedItem } from "@/lib/api"
 import { StoreSplitView } from "@/components/store-split-view"
+import { KitchenStaplesModal } from "@/components/kitchen-staples-modal"
 
 export function StoreLists() {
   const [items, setItems] = useState<ConsolidatedItem[]>([])
+  const [kitchenStaples, setKitchenStaples] = useState<ConsolidatedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // State for controlling the modal
+  const [showStaplesModal, setShowStaplesModal] = useState(false)
 
   const fetchItems = async () => {
     setLoading(true)
@@ -26,6 +31,7 @@ export function StoreLists() {
         if (res.ok) {
           const data = await res.json()
           setItems(Array.isArray(data) ? data : data.items || [])
+          setKitchenStaples(data.kitchen_staples || [])
           setLoading(false)
           return
         }
@@ -53,15 +59,31 @@ export function StoreLists() {
             Google Keep checklist.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={fetchItems}
-          disabled={loading}
-          className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowStaplesModal(true)}
+            className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary"
+          >
+            Show Kitchen Staples
+            {kitchenStaples.length > 0 && (
+              <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary font-semibold">
+                {kitchenStaples.length}
+              </span>
+            )}
+          </button>
+          
+          <button
+            type="button"
+            onClick={fetchItems}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {loading && (
@@ -78,6 +100,13 @@ export function StoreLists() {
       )}
 
       {!loading && !error && <StoreSplitView items={items} />}
+
+      {/* Kitchen Staples Modal */}
+      <KitchenStaplesModal
+        isOpen={showStaplesModal}
+        onClose={() => setShowStaplesModal(false)}
+        staples={kitchenStaples}
+      />
     </div>
   )
 }
