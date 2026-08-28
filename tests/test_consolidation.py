@@ -21,7 +21,7 @@ class MockConsolidatedItem:
 def test_build_consolidated_list_empty(session):
     """Verify empty list is returned when no ingredients match."""
     result = build_consolidated_list(session, recipe_ids=[999])
-    assert result == []
+    assert result == {'items': [], 'kitchen_staples': []}
 
 @pytest.mark.skip(reason="Might be ok to delete.")
 @patch("backend.services.consolidation.consolidate_ingredients")
