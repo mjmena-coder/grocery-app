@@ -33,6 +33,9 @@ export function KitchenStaplesModal({
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto py-4 space-y-3">
+          <p className="text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg border border-border">
+            Ensure that you have these items at home, they have been omitted from the grocery lists but are needed for the recipes selected.
+          </p>
           {staples.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground py-8">
               No kitchen staples required for this week&apos;s route.
