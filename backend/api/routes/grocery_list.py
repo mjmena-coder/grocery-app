@@ -26,10 +26,12 @@ def generate_grocery_list(
     session: Session = Depends(get_session)
 ):
     """Consolidates ingredients across recipe_ids, persists them as active, and returns routed items."""
-    consolidated_items = build_consolidated_list(session, recipe_ids=payload.recipe_ids)
+    result = build_consolidated_list(session, recipe_ids=payload.recipe_ids)
+    consolidated_items = result.get("items", [])
+    kitchen_staples = result.get("kitchen_staples", [])
     
-    if not consolidated_items:
-        return {"status": "ok", "items": []}
+    if not consolidated_items and not kitchen_staples:
+        return {"status": "ok", "items": [], "kitchen_staples": []}
 
     # 1. Deactivate previous active grocery items
     existing_active = session.scalars(
@@ -40,7 +42,7 @@ def generate_grocery_list(
         old_item.is_active = False
         session.add(old_item)
 
-    # 2. Persist newly generated items
+    # 2. Persist newly generated items (Optional: handle staples persistence here too if needed)
     for item in consolidated_items:
         db_item = GroceryItem(
             canonical_name=item["canonical_name"],
@@ -52,26 +54,42 @@ def generate_grocery_list(
             is_checked=False
         )
         session.add(db_item)
-    
+
+    # 3. Persist newly generated kitchen staples (Setting is_kitchen_staple=True)
+    for item in kitchen_staples:
+        db_item = GroceryItem(
+            canonical_name=item["canonical_name"],
+            quantity_display=item["quantity_display"],
+            category=item["category"],
+            assigned_store=item["assigned_store"],
+            recipes=item["recipes"],
+            is_active=True,
+            is_checked=False,
+            is_kitchen_staple=True # Explicitly a staple.
+        )
+        session.add(db_item)
+
+
     session.commit()
 
-    return {"status": "ok", "items": consolidated_items}
+    return {
+        "status": "ok", 
+        "items": consolidated_items, 
+        "kitchen_staples": kitchen_staples
+    }
 
 @router.get("/current")
 def get_current_list(session: Session = Depends(get_session)):
-    """Fetch active weekly grocery items grouped by assigned store."""
+    """Fetch active weekly grocery items and kitchen staples."""
     active_items = session.scalars(
         select(GroceryItem).where(GroceryItem.is_active == True)
     ).all()
 
-    # Group items by store for the frontend UI structure
     grouped_items = {}
+    kitchen_staples = []
+
     for item in active_items:
-        store = item.assigned_store
-        if store not in grouped_items:
-            grouped_items[store] = []
-        
-        grouped_items[store].append({
+        item_data = {
             "id": item.id,
             "canonical_name": item.canonical_name,
             "quantity_display": item.quantity_display,
@@ -79,9 +97,22 @@ def get_current_list(session: Session = Depends(get_session)):
             "assigned_store": item.assigned_store,
             "recipes": item.recipes,
             "is_checked": item.is_checked
-        })
+        }
 
-    return {"status": "ok", "items": grouped_items}
+        # Check if the item is a kitchen staple
+        if item.is_kitchen_staple:
+            kitchen_staples.append(item_data)
+        else:
+            store = item.assigned_store
+            if store not in grouped_items:
+                grouped_items[store] = []
+            grouped_items[store].append(item_data)
+
+    return {
+        "status": "ok", 
+        "items": grouped_items, 
+        "kitchen_staples": kitchen_staples
+    }
 
 
 @router.patch("/items/{item_id}")
