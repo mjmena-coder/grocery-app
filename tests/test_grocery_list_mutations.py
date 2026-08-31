@@ -162,7 +162,7 @@ def test_bulk_move_kitchen_staples_to_store(client, session):
     session.commit()                                              
                                                                   
     # Move all staples to Whole Foods                             
-    res = client.post("/grocery-list/staples/move-all?target_store=WholeFoods")                                                           
+    res = client.post("/grocery-list/staples/move-all?target_store=Whole Foods")                                                           
     assert res.status_code == 200                                 
     assert res.json()["moved_count"] == 2                         
                                                                   

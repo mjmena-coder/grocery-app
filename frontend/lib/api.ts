@@ -15,13 +15,18 @@ export interface ConsolidatedItem {
   id: number
   canonical_name: string
   quantity_display?: string | null
+  original_quantity_display?: string | null
   category: string
   assigned_store: string
+  assigned_store_override?: string | null
   recipes: string[]
   dirty_dozen?: boolean
   organic_considerations?: string[]
   is_active?: boolean
   is_checked?: boolean
+  is_kitchen_staple?: boolean
+  is_deleted?: boolean
+  deleted_at?: string | null
 }
 
 export interface UnlinkedIngredient {
@@ -37,7 +42,7 @@ export function itemName(item: ConsolidatedItem): string {
 }
 
 export function itemStore(item: ConsolidatedItem): string {
-  return item.assigned_store || "Unassigned"
+  return item.assigned_store_override || item.assigned_store || "Unassigned"
 }
 
 export function itemCategory(item: ConsolidatedItem): string {
@@ -146,6 +151,57 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     return ok
   } catch {
     return false
+  }
+}
+
+export async function updateGroceryItemStore(
+  itemId: number,
+  assignedStore: string,
+  saveAsDefault: boolean = false
+): Promise<void> {
+  const res = await fetch(apiUrl(`/grocery-list/items/${itemId}`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      assigned_store_override: assignedStore,
+      assigned_store: assignedStore,
+      save_as_default: saveAsDefault,
+    }),
+  })
+  if (!res.ok) {
+    throw new Error(`Failed to update store: ${res.statusText}`)
+  }
+}
+
+export async function updateGroceryItemQuantity(
+  itemId: number,
+  quantityDisplay: string
+): Promise<void> {
+  const res = await fetch(apiUrl(`/grocery-list/items/${itemId}`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quantity_display: quantityDisplay }),
+  })
+  if (!res.ok) {
+    throw new Error(`Failed to update quantity: ${res.statusText}`)
+  }
+}
+
+export async function deleteGroceryItem(itemId: number): Promise<void> {
+  const res = await fetch(apiUrl(`/grocery-list/items/${itemId}`), {
+    method: "DELETE",
+  })
+  if (!res.ok) {
+    throw new Error(`Failed to delete item: ${res.statusText}`)
+  }
+}
+
+export async function restoreGroceryItem(itemId: number): Promise<void> {
+  const res = await fetch(apiUrl(`/grocery-list/items/${itemId}/restore`), {
+    method: "POST",
+  })
+  if (!res.ok) {
+    throw new Error(`Failed to restore item: ${res.statusText}`)
   }
 }
 
