@@ -196,15 +196,6 @@ export async function deleteGroceryItem(itemId: number): Promise<void> {
   }
 }
 
-export async function restoreGroceryItem(itemId: number): Promise<void> {
-  const res = await fetch(apiUrl(`/grocery-list/items/${itemId}/restore`), {
-    method: "POST",
-  })
-  if (!res.ok) {
-    throw new Error(`Failed to restore item: ${res.statusText}`)
-  }
-}
-
 // Sends selected recipe ids to POST /grocery-list/generate. The backend
 // aggregates quantities, runs store routing, and saves the active weekly list.
 export async function generateGroceryList(recipeIds: number[]): Promise<void> {

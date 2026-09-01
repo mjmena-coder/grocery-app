@@ -17,6 +17,7 @@ import {
   updateGroceryItemStore,
   type ConsolidatedItem,
 } from "@/lib/api"
+import { parseQuantityAndUnit, isValidQuantityNumber, pluralizeUnit } from "@/lib/utils"
 
 interface StoreSplitViewProps {
   items: ConsolidatedItem[] | { [key: string]: ConsolidatedItem[] } | { items: ConsolidatedItem[] }
@@ -48,38 +49,6 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
   const [editingItemId, setEditingItemId] = useState<number | null>(null)
   const [editQuantityText, setEditQuantityText] = useState("")
 
-  // Helper to extract (numeric_part, unit_part) from display quantity like "3 cups" or "1/2 tsp"
-  const parseQuantityAndUnit = (displayStr: string | null | undefined): { numeric: string; unit: string } => {
-    if (!displayStr) return { numeric: "", unit: "" }
-    const match = displayStr.trim().match(/^((?:\d+\/\d+|\d+(?:\.\d+)?(?:\s+\d+\/\d+)?))\s*(.*)$/)
-    if (match) {
-      return { numeric: match[1], unit: match[2] }
-    }
-    return { numeric: displayStr.trim(), unit: "" }
-  }
-
-  // Helper to validate numeric or fraction strings like "2", "0.5", "1/2", "1 1/2"
-  const isValidQuantityNumber = (val: string): boolean => {
-    const trimmed = val.trim()
-    if (!trimmed) return false
-    // Integer / Decimal
-    if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
-      return parseFloat(trimmed) > 0
-    }
-    // Simple fraction e.g. "1/2"
-    if (/^\d+\/\d+$/.test(trimmed)) {
-      const [num, den] = trimmed.split("/").map(Number)
-      return den !== 0 && num / den > 0
-    }
-    // Mixed fraction e.g. "1 1/2"
-    if (/^\d+\s+\d+\/\d+$/.test(trimmed)) {
-      const [whole, frac] = trimmed.split(/\s+/)
-      const [num, den] = frac.split("/").map(Number)
-      return den !== 0 && (Number(whole) + num / den) > 0
-    }
-    return false
-  }
-
   const handleSaveQuantity = async (item: ConsolidatedItem) => {
     const newNum = editQuantityText.trim()
     if (!newNum) {
@@ -93,7 +62,7 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
     }
 
     const { numeric: currentNum, unit } = parseQuantityAndUnit(item.quantity_display)
-    const newFullDisplay = unit ? `${newNum} ${unit}` : newNum
+    const newFullDisplay = pluralizeUnit(newNum, unit)
     const currentFullDisplay = item.quantity_display || currentNum || "0"
 
     // If nothing changed, exit edit mode
@@ -103,7 +72,7 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to update quantity from "${currentFullDisplay}" to "${newFullDisplay}"?`
+      `Are you sure you want to update quantity of ${itemName(item)} from ${currentFullDisplay} to ${newFullDisplay}?`
     )
     if (!confirmed) return
 

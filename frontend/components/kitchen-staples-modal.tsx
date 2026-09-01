@@ -4,12 +4,12 @@ import { useState } from "react"
 import { X, Edit2, Trash2, ArrowRightLeft, Check as SaveIcon } from "lucide-react"
 import {
   deleteGroceryItem,
-  restoreGroceryItem,
   updateGroceryItemQuantity,
   updateGroceryItemStore,
   itemName,
   type ConsolidatedItem,
 } from "@/lib/api"
+import { parseQuantityAndUnit, isValidQuantityNumber, pluralizeUnit } from "@/lib/utils"
 
 interface KitchenStaplesModalProps {
   isOpen: boolean
@@ -33,16 +33,37 @@ export function KitchenStaplesModal({
   if (!isOpen) return null
 
   const handleSaveQuantity = async (item: ConsolidatedItem) => {
-    if (!editQuantityText.trim()) {
+    const newNum = editQuantityText.trim()
+    if (!newNum) {
       setEditingItemId(null)
       return
     }
+
+    if (!isValidQuantityNumber(newNum)) {
+      alert("Please enter a valid positive number or fraction (e.g., 2, 0.5, 1/2, or 1 1/2).")
+      return
+    }
+
+    const { numeric: currentNum, unit } = parseQuantityAndUnit(item.quantity_display)
+    const newFullDisplay = pluralizeUnit(newNum, unit)
+    const currentFullDisplay = item.quantity_display || currentNum || "0"
+
+    if (newFullDisplay === currentFullDisplay) {
+      setEditingItemId(null)
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to update quantity of ${itemName(item)} from ${currentFullDisplay} to ${newFullDisplay}?`
+    )
+    if (!confirmed) return
+
     try {
-      await updateGroceryItemQuantity(item.id, editQuantityText.trim())
+      await updateGroceryItemQuantity(item.id, newFullDisplay)
       setEditingItemId(null)
       onRefresh?.()
     } catch {
-      toast.error("Failed to update item quantity")
+      alert("Failed to update item quantity")
     }
   }
 
@@ -51,32 +72,18 @@ export function KitchenStaplesModal({
       await updateGroceryItemStore(item.id, targetStore, false)
       setMovingItem(null)
       onRefresh?.()
-      toast.success(`Moved "${itemName(item)}" to ${targetStore}`)
     } catch {
-      toast.error("Failed to move item store")
+      alert("Failed to move item store")
     }
   }
 
   const handleDeleteItem = async (item: ConsolidatedItem) => {
+    if (!window.confirm(`Are you sure you want to delete "${itemName(item)}"?`)) return
     try {
       await deleteGroceryItem(item.id)
       onRefresh?.()
-      toast(`Deleted "${itemName(item)}"`, {
-        action: {
-          label: "Undo",
-          onClick: async () => {
-            try {
-              await restoreGroceryItem(item.id)
-              onRefresh?.()
-              toast.success(`Restored "${itemName(item)}"`)
-            } catch {
-              toast.error("Failed to restore item")
-            }
-          },
-        },
-      })
     } catch {
-      toast.error("Failed to delete item")
+      alert("Failed to delete item")
     }
   }
 
@@ -120,7 +127,9 @@ export function KitchenStaplesModal({
                       <div className="flex items-center gap-1">
                         <input
                           type="text"
-                          className="h-6 w-20 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          title="Enter new numeric quantity"
+                          placeholder="Qty"
+                          className="h-6 w-14 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                           value={editQuantityText}
                           onChange={(e) => setEditQuantityText(e.target.value)}
                           autoFocus
@@ -129,10 +138,15 @@ export function KitchenStaplesModal({
                             if (e.key === "Escape") setEditingItemId(null)
                           }}
                         />
+                        {parseQuantityAndUnit(staple.quantity_display).unit && (
+                          <span className="text-xs text-muted-foreground font-medium select-none">
+                            {parseQuantityAndUnit(staple.quantity_display).unit}
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleSaveQuantity(staple)}
-                          className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground"
+                          className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground ml-1"
                         >
                           <SaveIcon className="h-3 w-3" />
                         </button>
@@ -152,17 +166,18 @@ export function KitchenStaplesModal({
                           type="button"
                           title="Edit quantity"
                           onClick={() => {
+                            const { numeric } = parseQuantityAndUnit(staple.quantity_display)
                             setEditingItemId(staple.id)
-                            setEditQuantityText(staple.quantity_display || "")
+                            setEditQuantityText(numeric)
                           }}
-                          className="p-1 text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="p-1 text-muted-foreground/70 hover:text-foreground opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                         >
                           <Edit2 className="h-3 w-3" />
                         </button>
                       </div>
                     )}
 
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         title="Move to store list"
