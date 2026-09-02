@@ -8,6 +8,7 @@ from backend.models import Recipe, Ingredient
 from backend.services.consolidation import build_consolidated_list
 import pytest
 
+
 @dataclass
 class MockConsolidatedItem:
     id: int
@@ -23,7 +24,7 @@ def test_build_consolidated_list_empty(session):
     result = build_consolidated_list(session, recipe_ids=[999])
     assert result == {'items': [], 'kitchen_staples': []}
 
-@pytest.mark.skip(reason="Might be ok to delete.")
+
 @patch("backend.services.consolidation.consolidate_ingredients")
 def test_build_consolidated_list_with_items(mock_consolidate, session):
     """Verify build_consolidated_list integrates DB models, StoreRouter, and recipe provenance."""
@@ -57,8 +58,8 @@ def test_build_consolidated_list_with_items(mock_consolidate, session):
     result = build_consolidated_list(session, recipe_ids=[recipe.id])
 
     # 4. Assert against output structure built in consolidation.py
-    assert len(result) == 1
-    item = result[0]
+    assert len(result["items"]) == 1
+    item = result["items"][0]
     assert item["canonical_name"] == "spinach"
     assert item["quantity_display"] == "2.0 cup"
     assert item["category"] == "PRODUCE"

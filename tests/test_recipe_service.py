@@ -4,24 +4,39 @@ from io import BytesIO
 
 from backend.models import Recipe, Ingredient
 from backend.services.recipe_service import process_and_save_recipe
+from backend.services.vlm_service import ParsedIngredientSchema, VLMRecipeSchema
 
 import pytest
 
-@pytest.mark.skip(reason="Might be ok to delete.")
+
 @patch("backend.services.recipe_service.ensure_ollama_running")
 @patch("backend.services.recipe_service.extract_recipe_from_image")
 def test_process_and_save_recipe_full_metadata(mock_extract, mock_ollama, session):
     # Mock VLM extraction result with full metadata
-    class MockVLMRecipe:
-        title = "Roasted Garlic Pasta"
-        yield_info = "Serves 4"
-        prep_time = "15 mins"
-        cook_time = "20 mins"
-        ingredients = ["8 oz pasta", "4 cloves garlic"]
-        steps = ["Boil pasta.", "Sauté garlic."]
-        notes = ["Use gluten-free pasta if needed."]
-
-    mock_extract.return_value = MockVLMRecipe()
+    mock_extract.return_value = VLMRecipeSchema(
+        title="Roasted Garlic Pasta",
+        yield_info="Serves 4",
+        prep_time="15 mins",
+        cook_time="20 mins",
+        ingredients=[
+            ParsedIngredientSchema(
+                raw_text="8 oz pasta",
+                canonical_name="pasta",
+                quantity=8.0,
+                unit="oz",
+                category="PASTA",
+            ),
+            ParsedIngredientSchema(
+                raw_text="4 cloves garlic",
+                canonical_name="garlic",
+                quantity=4.0,
+                unit="cloves",
+                category="PRODUCE",
+            ),
+        ],
+        steps=["Boil pasta.", "Sauté garlic."],
+        notes=["Use gluten-free pasta if needed."],
+    )
 
     # Create dummy upload file
     file = UploadFile(filename="test_recipe.jpg", file=BytesIO(b"fake image data"))
