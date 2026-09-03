@@ -30,6 +30,7 @@ def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optiona
     if canonical_id:
         return canonical_id
 
+    # Create because match not found.
     new_canonical = CanonicalIngredient(
         name=canonical_name,
         category=category,
