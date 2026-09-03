@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import ForeignKey, JSON
@@ -79,9 +79,13 @@ class GroceryItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     canonical_name: Mapped[str] # TODO: change the name, not always canonical now that kitchen staples live here.
     quantity_display: Mapped[Optional[str]]
+    original_quantity_display: Mapped[Optional[str]] = mapped_column(nullable=True)
     category: Mapped[Optional[str]]
     assigned_store: Mapped[str]
+    assigned_store_override: Mapped[Optional[str]] = mapped_column(nullable=True)
     recipes: Mapped[list] = mapped_column(JSON, default=list)
     is_kitchen_staple: Mapped[bool] = mapped_column(default=False)
     is_active: Mapped[bool] = mapped_column(default=True)
     is_checked: Mapped[bool] = mapped_column(default=False)
+    is_deleted: Mapped[bool] = mapped_column(default=False)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)

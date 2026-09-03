@@ -5,23 +5,26 @@ from backend.services.canonical_service import (
     get_unlinked_ingredients,
     merge_canonical_records,
 )
+from backend.services.vlm_service import ParsedIngredientSchema
 
-@pytest.mark.skip(reason="Might be ok to delete.")
+
 def test_resolve_exact_match(session):
     canonical = CanonicalIngredient(name="yellow onion", category="produce")
     session.add(canonical)
     session.commit()
 
-    matched_id = resolve_or_create_canonical_ingredient(session, "Yellow Onion")
+    parsed = ParsedIngredientSchema(canonical_name="yellow onion", raw_text="Yellow Onion")
+    matched_id = resolve_or_create_canonical_ingredient(session, parsed)
     assert matched_id == canonical.id
 
-@pytest.mark.skip(reason="Might be ok to delete.")
+
 def test_resolve_substring_match(session):
     canonical = CanonicalIngredient(name="yellow onion", category="produce")
     session.add(canonical)
     session.commit()
 
-    matched_id = resolve_or_create_canonical_ingredient(session, "diced yellow onion")
+    parsed = ParsedIngredientSchema(canonical_name="yellow onion", raw_text="diced yellow onion")
+    matched_id = resolve_or_create_canonical_ingredient(session, parsed)
     assert matched_id == canonical.id
 
 

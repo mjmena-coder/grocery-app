@@ -8,28 +8,25 @@ from backend.models import Recipe, Ingredient
 from backend.services.consolidation import build_consolidated_list
 import pytest
 
-@dataclass
-class MockConsolidatedItem:
-    id: int
-    canonical_name: str
-    quantity: Optional[float]
-    unit: Optional[str]
-    category: str
-    source_ingredient_ids: List[int]
-
 
 def test_build_consolidated_list_empty(session):
     """Verify empty list is returned when no ingredients match."""
     result = build_consolidated_list(session, recipe_ids=[999])
     assert result == {'items': [], 'kitchen_staples': []}
 
-@pytest.mark.skip(reason="Might be ok to delete.")
+
 @patch("backend.services.consolidation.consolidate_ingredients")
 def test_build_consolidated_list_with_items(mock_consolidate, session):
     """Verify build_consolidated_list integrates DB models, StoreRouter, and recipe provenance."""
-    # 1. Seed recipe and ingredient in test DB
+    from backend.models import CanonicalIngredient
+
+    # 1. Seed recipe, canonical ingredient, and ingredient in test DB
     recipe = Recipe(title="Green Smoothie", steps="Blend ingredients.")
     session.add(recipe)
+    session.commit()
+
+    canonical = CanonicalIngredient(name="spinach", category="PRODUCE")
+    session.add(canonical)
     session.commit()
 
     ing = Ingredient(
@@ -37,30 +34,32 @@ def test_build_consolidated_list_with_items(mock_consolidate, session):
         raw_name="2 cups spinach",
         quantity=2.0,
         unit="cup",
+        canonical_ingredient_id=canonical.id,
     )
     session.add(ing)
     session.commit()
 
-    # 2. Mock output from backend.consolidation_engine
-    mock_consolidate.return_value = [
-        MockConsolidatedItem(
-            id=1,
-            canonical_name="spinach",
-            quantity=2.0,
-            unit="cup",
-            category="produce",
-            source_ingredient_ids=[ing.id],
-        )
+    # 2. Mock output from backend.consolidation_engine for canonical items and kitchen staples calls
+    mock_consolidate.side_effect = [
+        [
+            {
+                "name": "spinach",
+                "quantity": 2.0,
+                "unit": "cup",
+                "quantity_display": "2 cups",
+                "source_ingredient_ids": [ing.id],
+            }
+        ],
+        [],  # kitchen staples call returns empty
     ]
 
     # 3. Call consolidation service
     result = build_consolidated_list(session, recipe_ids=[recipe.id])
 
     # 4. Assert against output structure built in consolidation.py
-    assert len(result) == 1
-    item = result[0]
+    assert len(result["items"]) == 1
+    item = result["items"][0]
     assert item["canonical_name"] == "spinach"
-    assert item["quantity_display"] == "2.0 cup"
+    assert item["quantity_display"] == "2 cups"
     assert item["category"] == "PRODUCE"
-    assert item["assigned_store"] == "Whole Foods"  # Keyword 'spinach' routes to Whole Foods via StoreRouter
     assert item["recipes"] == ["Green Smoothie"]

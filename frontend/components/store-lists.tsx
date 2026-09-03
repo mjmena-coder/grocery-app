@@ -99,13 +99,14 @@ export function StoreLists() {
         </div>
       )}
 
-      {!loading && !error && <StoreSplitView items={items} />}
+      {!loading && !error && <StoreSplitView items={items} onRefresh={fetchItems} />}
 
       {/* Kitchen Staples Modal */}
       <KitchenStaplesModal
         isOpen={showStaplesModal}
         onClose={() => setShowStaplesModal(false)}
         staples={kitchenStaples}
+        onRefresh={fetchItems}
       />
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Store, Check, ShoppingCart, Leaf, ClipboardList, ClipboardCheck } from "lucide-react"
+import { Store, Check, ShoppingCart, Leaf, ClipboardList, ClipboardCheck, Edit2, Trash2, ArrowRightLeft, Check as SaveIcon } from "lucide-react"
 import {
   apiUrl,
   copyToClipboard,
@@ -11,11 +11,18 @@ import {
   itemName,
   itemQuantity,
   itemStore,
+  deleteGroceryItem,
+  restoreGroceryItem,
+  updateGroceryItemQuantity,
+  updateGroceryItemStore,
   type ConsolidatedItem,
 } from "@/lib/api"
+import { parseQuantityAndUnit, isValidQuantityNumber, pluralizeUnit } from "@/lib/utils"
 
 interface StoreSplitViewProps {
   items: ConsolidatedItem[] | { [key: string]: ConsolidatedItem[] } | { items: ConsolidatedItem[] }
+  allStores?: string[]
+  onRefresh?: () => void
 }
 
 type StoreGroup = {
@@ -34,9 +41,71 @@ const STORE_ACCENTS = [
   "var(--color-chart-5)",
 ]
 
-export function StoreSplitView({ items }: StoreSplitViewProps) {
+export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe's", "Whole Foods"], onRefresh }: StoreSplitViewProps) {
   const [checkedOverrides, setCheckedOverrides] = useState<Record<number, boolean>>({})
   const [copiedStore, setCopiedStore] = useState<string | null>(null)
+
+  const [movingItem, setMovingItem] = useState<ConsolidatedItem | null>(null)
+  const [editingItemId, setEditingItemId] = useState<number | null>(null)
+  const [editQuantityText, setEditQuantityText] = useState("")
+
+  const handleSaveQuantity = async (item: ConsolidatedItem) => {
+    const newNum = editQuantityText.trim()
+    if (!newNum) {
+      setEditingItemId(null)
+      return
+    }
+
+    if (!isValidQuantityNumber(newNum)) {
+      alert("Please enter a valid positive number or fraction (e.g., 2, 0.5, 1/2, or 1 1/2).")
+      return
+    }
+
+    const { numeric: currentNum, unit } = parseQuantityAndUnit(item.quantity_display)
+    const newFullDisplay = pluralizeUnit(newNum, unit)
+    const currentFullDisplay = item.quantity_display || currentNum || "0"
+
+    // If nothing changed, exit edit mode
+    if (newFullDisplay === currentFullDisplay) {
+      setEditingItemId(null)
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to update quantity of ${itemName(item)} from ${currentFullDisplay} to ${newFullDisplay}?`
+    )
+    if (!confirmed) return
+
+    try {
+      await updateGroceryItemQuantity(item.id, newFullDisplay)
+      setEditingItemId(null)
+      onRefresh?.()
+    } catch {
+      alert("Failed to update item quantity")
+    }
+  }
+
+  const handleMoveItem = async (item: ConsolidatedItem, targetStore: string, saveDefault: boolean = false) => {
+    try {
+      await updateGroceryItemStore(item.id, targetStore, saveDefault)
+      setMovingItem(null)
+      onRefresh?.()
+    } catch {
+      alert("Failed to move item store")
+    }
+  }
+
+  const handleDeleteItem = async (item: ConsolidatedItem) => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${itemName(item)}"?`)
+    if (!confirmed) return
+
+    try {
+      await deleteGroceryItem(item.id)
+      onRefresh?.()
+    } catch {
+      alert("Failed to delete item")
+    }
+  }
 
   // 🛡️ Bulletproof normalizer: handles arrays, API response wrappers, or dictionaries safely
   const safeItems = useMemo<ConsolidatedItem[]>(() => {
@@ -93,7 +162,7 @@ export function StoreSplitView({ items }: StoreSplitViewProps) {
     const next = !(checkedOverrides[item.id] ?? itemChecked(item))
     setCheckedOverrides((prev) => ({ ...prev, [item.id]: next }))
     try {
-      await fetch(apiUrl(`/grocery/items/${item.id}/toggle`), {
+      await fetch(apiUrl(`/grocery-list/items/${item.id}/toggle`), {
         method: "PATCH",
       })
     } catch {
@@ -176,54 +245,146 @@ export function StoreSplitView({ items }: StoreSplitViewProps) {
                       const qty = itemQuantity(item)
                       return (
                         <li key={item.id}>
-                          <button
-                            type="button"
-                            onClick={() => toggleItem(item)}
-                            aria-pressed={isChecked}
-                            className="group flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition hover:bg-secondary"
-                          >
-                            <span
-                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${
-                                isChecked
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border bg-card group-hover:border-primary"
-                              }`}
+                          <div className="group flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition hover:bg-secondary">
+                            <button
+                              type="button"
+                              onClick={() => toggleItem(item)}
+                              aria-pressed={isChecked}
+                              className="flex items-center gap-3 flex-1 min-w-0 text-left"
                             >
-                              {isChecked && <Check className="h-3.5 w-3.5" />}
-                            </span>
-
-                            {/* Item Name & Recipe Provenance Column */}
-                            <div className="flex flex-col flex-1 min-w-0">
                               <span
-                                className={`text-sm transition truncate ${
+                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${
                                   isChecked
-                                    ? "text-muted-foreground line-through"
-                                    : "text-foreground"
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-border bg-card group-hover:border-primary"
                                 }`}
                               >
-                                {itemName(item)}
+                                {isChecked && <Check className="h-3.5 w-3.5" />}
                               </span>
-                              {item.recipes && item.recipes.length > 0 && (
-                                <span className="text-[11px] text-muted-foreground/70 truncate">
-                                  From: {item.recipes.join(", ")}
+
+                              {/* Item Name & Recipe Provenance Column */}
+                              <div className="flex flex-col flex-1 min-w-0">
+                                <span
+                                  className={`text-sm transition truncate ${
+                                    isChecked
+                                      ? "text-muted-foreground line-through"
+                                      : "text-foreground"
+                                  }`}
+                                >
+                                  {itemName(item)}
                                 </span>
-                              )}
-                            </div>
+                                {item.recipes && item.recipes.length > 0 && (
+                                  <span className="text-[11px] text-muted-foreground/70 truncate">
+                                    From: {item.recipes.join(", ")}
+                                  </span>
+                                )}
+                              </div>
+                            </button>
 
                             {item.dirty_dozen && (
                               <span
                                 title="Dirty Dozen — buy organic"
-                                className="flex items-center gap-1 rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-medium text-accent-foreground"
+                                className="flex items-center gap-1 rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-medium text-accent-foreground shrink-0"
                               >
                                 <Leaf className="h-3 w-3" /> Organic
                               </span>
                             )}
-                            {qty && (
-                              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                                {qty}
-                              </span>
-                            )}
-                          </button>
+
+                            {/* Quantity Editing and Original Quantity Display */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {editingItemId === item.id ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="text"
+                                    title="Enter new numeric quantity"
+                                    placeholder="Qty"
+                                    className="h-6 w-14 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                    value={editQuantityText}
+                                    onChange={(e) => setEditQuantityText(e.target.value)}
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") handleSaveQuantity(item)
+                                      if (e.key === "Escape") setEditingItemId(null)
+                                    }}
+                                  />
+                                  {parseQuantityAndUnit(item.quantity_display).unit && (
+                                    <span className="text-xs text-muted-foreground font-medium select-none">
+                                      {parseQuantityAndUnit(item.quantity_display).unit}
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveQuantity(item)}
+                                    className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground ml-1"
+                                  >
+                                    <SaveIcon className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  {qty && (
+                                    <span className="text-xs tabular-nums text-muted-foreground">
+                                      {qty}
+                                    </span>
+                                  )}
+                                  {item.original_quantity_display && item.original_quantity_display !== item.quantity_display && (
+                                    <span className="text-[10px] text-muted-foreground/60 line-through">
+                                      (was {item.original_quantity_display})
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    title="Edit quantity"
+                                    onClick={() => {
+                                      const { numeric } = parseQuantityAndUnit(item.quantity_display)
+                                      setEditingItemId(item.id)
+                                      setEditQuantityText(numeric)
+                                    }}
+                                    className="p-1 text-muted-foreground/70 hover:text-foreground opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Actions: Move Store & Soft Delete */}
+                            <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                title="Move to another store"
+                                onClick={() => setMovingItem(movingItem?.id === item.id ? null : item)}
+                                className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary"
+                              >
+                                <ArrowRightLeft className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Delete item"
+                                onClick={() => handleDeleteItem(item)}
+                                className="p-1 text-destructive/70 hover:text-destructive rounded hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Quick Store Selector Dropdown */}
+                          {movingItem?.id === item.id && (
+                            <div className="mt-2 ml-8 p-2 rounded-lg border border-border bg-popover shadow-md flex flex-wrap items-center gap-1.5 text-xs">
+                              <span className="text-muted-foreground font-medium mr-1">Move to:</span>
+                              {allStores.map((st) => (
+                                <button
+                                  key={st}
+                                  type="button"
+                                  onClick={() => handleMoveItem(item, st)}
+                                  className="px-2 py-1 rounded bg-secondary hover:bg-primary hover:text-primary-foreground transition text-foreground"
+                                >
+                                  {st}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </li>
                       )
                     })}

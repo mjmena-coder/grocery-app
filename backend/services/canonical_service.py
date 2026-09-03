@@ -1,61 +1,15 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from sqlalchemy import select, func, update
 from sqlalchemy.orm import Session
 
 from backend.models import CanonicalIngredient, Ingredient
 from backend.services.vlm_service import ParsedIngredientSchema
-from backend.services.canonical_catalog import resolve_canonical_category, CANONICAL_SEED_CATALOG
-
-
-def resolve_or_create_canonical_ingredient(session: Session, raw_name: Optional[str]) -> Optional[int]:
-    """
-    Attempts to match a parsed ingredient's raw_name against existing 
-    CanonicalIngredient records. If none is found, auto-creates a new one.
-    """
-    if not raw_name:
-        return None
-
-    cleaned_name = raw_name.strip().lower()
-
-    # Step 1: Exact match (case-insensitive)
-    stmt = select(CanonicalIngredient.id).where(
-        func.lower(CanonicalIngredient.name) == cleaned_name
-    )
-    canonical_id = session.scalar(stmt)
-    if canonical_id:
-        return canonical_id
-
-    # Step 2a: Raw input contains Canonical name
-    stmt_raw_contains = select(CanonicalIngredient.id).where(
-        func.instr(cleaned_name, func.lower(CanonicalIngredient.name)) > 0
-    )
-    canonical_id = session.scalar(stmt_raw_contains)
-    if canonical_id:
-        return canonical_id
-
-    # Step 2b: Canonical name contains Raw input
-    stmt_canonical_contains = select(CanonicalIngredient.id).where(
-        func.lower(CanonicalIngredient.name).like(f"%{cleaned_name}%")
-    )
-    canonical_id = session.scalar(stmt_canonical_contains)
-    if canonical_id:
-        return canonical_id
-
-    # 🚀 Step 3: AUTO-SEED / CREATE IF MISSING
-    new_canonical = CanonicalIngredient(
-        name=cleaned_name,
-        category="General",  # Default category or pass through if available
-        dirty_dozen=False
-    )
-    session.add(new_canonical)
-    session.flush()  # Flushes to database immediately so new_canonical.id is generated
-    
-    return new_canonical.id
+from backend.services.canonical_catalog import resolve_canonical_category
 
 
 def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optional[ParsedIngredientSchema]) -> Optional[int]:
     """
-    Attempts to match a parsed ingredient's canon name against existing 
+    Attempts to match a parsed ingredient's canon name against existing
     CanonicalIngredient records. If none is found, auto-creates a new one.
     """
     canonical_name = ingredient.canonical_name
@@ -69,10 +23,9 @@ def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optiona
             vlm_dirty_dozen=ingredient.is_dirty_dozen,
         )
 
-    # Compare directly to names in CanonicalIngredients.
+    # Exact case-insensitive match
     stmt = select(CanonicalIngredient.id).where(
-        func.lower(CanonicalIngredient.name) == canonical_name
-    )
+        func.lower(CanonicalIngredient.name) == canonical_name.lower())
     canonical_id = session.scalar(stmt)
     if canonical_id:
         return canonical_id
@@ -87,13 +40,13 @@ def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optiona
     )
     session.add(new_canonical)
     session.flush()  # Flushes to database immediately so new_canonical.id is generated
-    
+
     return new_canonical.id
 
 
 def get_unlinked_ingredients(session: Session) -> List[Dict[str, Any]]:
     """
-    Fetches all recipe ingredient records that currently do not have a 
+    Fetches all recipe ingredient records that currently do not have a
     canonical_ingredient_id assigned.
     """
     stmt = select(Ingredient).where(Ingredient.canonical_ingredient_id.is_(None))
