@@ -23,15 +23,13 @@ def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optiona
             vlm_dirty_dozen=ingredient.is_dirty_dozen,
         )
 
-    # Compare directly to names in CanonicalIngredients.
+    # Exact case-insensitive match
     stmt = select(CanonicalIngredient.id).where(
-        func.lower(CanonicalIngredient.name) == canonical_name
-    )
+        func.lower(CanonicalIngredient.name) == canonical_name.lower())
     canonical_id = session.scalar(stmt)
     if canonical_id:
         return canonical_id
 
-    # Create because match not found.
     new_canonical = CanonicalIngredient(
         name=canonical_name,
         category=category,
