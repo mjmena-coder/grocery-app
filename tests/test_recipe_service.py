@@ -9,9 +9,8 @@ from backend.services.vlm_service import ParsedIngredientSchema, VLMRecipeSchema
 import pytest
 
 
-@patch("backend.services.recipe_service.ensure_ollama_running")
 @patch("backend.services.recipe_service.extract_recipe_from_image")
-def test_process_and_save_recipe_full_metadata(mock_extract, mock_ollama, session):
+def test_process_and_save_recipe_full_metadata(mock_extract, session):
     # Mock VLM extraction result with full metadata
     mock_extract.return_value = VLMRecipeSchema(
         title="Roasted Garlic Pasta",
