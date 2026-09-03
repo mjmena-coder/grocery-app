@@ -7,83 +7,47 @@ from backend.services.vlm_service import ParsedIngredientSchema
 from backend.services.canonical_catalog import resolve_canonical_category
 
 
-def resolve_or_create_canonical_ingredient(
-    session: Session, 
-    ingredient: Union[str, ParsedIngredientSchema, None]
-) -> Optional[int]:
+def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optional[ParsedIngredientSchema]) -> Optional[int]:
     """
-    Attempts to match a parsed ingredient or raw string against existing 
+    Attempts to match a parsed ingredient's canon name against existing
     CanonicalIngredient records. If none is found, auto-creates a new one.
     """
-    if ingredient is None:
-        return None
-
-    if isinstance(ingredient, str):
-        canonical_name = ingredient.strip()
-        raw_text = ingredient
-        vlm_category = None
-        is_dirty = False
-        organic_considerations = None
-    else:
-        canonical_name = (ingredient.canonical_name or ingredient.raw_text or "").strip()
-        raw_text = ingredient.raw_text
-        vlm_category = ingredient.category
-        is_dirty = ingredient.is_dirty_dozen
-        organic_considerations = ingredient.organic_considerations
-
+    canonical_name = ingredient.canonical_name
     if not canonical_name:
         return None
 
-    cleaned_lower = canonical_name.lower()
+    category, is_dirty = resolve_canonical_category(
+            name=ingredient.canonical_name, # Using canonical name instead of cleaned_name, expect already cleaned.
+            raw_text=ingredient.raw_text,
+            vlm_category=ingredient.category,
+            vlm_dirty_dozen=ingredient.is_dirty_dozen,
+        )
 
-    # Step 1: Exact match (case-insensitive)
+    # Compare directly to names in CanonicalIngredients.
     stmt = select(CanonicalIngredient.id).where(
-        func.lower(CanonicalIngredient.name) == cleaned_lower
+        func.lower(CanonicalIngredient.name) == canonical_name
     )
     canonical_id = session.scalar(stmt)
     if canonical_id:
         return canonical_id
 
-    # Step 2a: Raw/Canonical input contains existing Canonical name
-    stmt_raw_contains = select(CanonicalIngredient.id).where(
-        func.instr(cleaned_lower, func.lower(CanonicalIngredient.name)) > 0
-    )
-    canonical_id = session.scalar(stmt_raw_contains)
-    if canonical_id:
-        return canonical_id
-
-    # Step 2b: Existing Canonical name contains input
-    stmt_canonical_contains = select(CanonicalIngredient.id).where(
-        func.lower(CanonicalIngredient.name).like(f"%{cleaned_lower}%")
-    )
-    canonical_id = session.scalar(stmt_canonical_contains)
-    if canonical_id:
-        return canonical_id
-
-    # Step 3: Resolve category & dirty dozen classification
-    category, dirty_dozen_flag = resolve_canonical_category(
-        name=canonical_name,
-        raw_text=raw_text,
-        vlm_category=vlm_category,
-        vlm_dirty_dozen=is_dirty,
-    )
-
-    # Step 4: Create new record
+    # Create because match not found.
     new_canonical = CanonicalIngredient(
         name=canonical_name,
         category=category,
-        dirty_dozen=dirty_dozen_flag,
-        organic_considerations=organic_considerations,
+        dirty_dozen=is_dirty,
+        organic_considerations=ingredient.organic_considerations
+        # Missing default store id may be needed, may not...
     )
     session.add(new_canonical)
-    session.flush()
-    
+    session.flush()  # Flushes to database immediately so new_canonical.id is generated
+
     return new_canonical.id
 
 
 def get_unlinked_ingredients(session: Session) -> List[Dict[str, Any]]:
     """
-    Fetches all recipe ingredient records that currently do not have a 
+    Fetches all recipe ingredient records that currently do not have a
     canonical_ingredient_id assigned.
     """
     stmt = select(Ingredient).where(Ingredient.canonical_ingredient_id.is_(None))
