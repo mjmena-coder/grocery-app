@@ -19,8 +19,8 @@ def save_generated_list(session: Session, consolidated_items: List[Dict[str, Any
     for item in consolidated_items:
         session.add(GroceryItem(
             canonical_name=item["canonical_name"],
-            quantity_display=item["quantity_display"],
-            original_quantity_display=item["quantity_display"],
+            quantity_display=item.get("quantity_display"),
+            original_quantity_display=item.get("original_quantity_display") or item.get("quantity_display"),
             category=item["category"],
             assigned_store=item["assigned_store"],
             recipes=item["recipes"],
@@ -31,8 +31,8 @@ def save_generated_list(session: Session, consolidated_items: List[Dict[str, Any
     for item in kitchen_staples:
         session.add(GroceryItem(
             canonical_name=item["canonical_name"],
-            quantity_display=item["quantity_display"],
-            original_quantity_display=item["quantity_display"],
+            quantity_display=item.get("quantity_display"),
+            original_quantity_display=item.get("original_quantity_display") or item.get("quantity_display"),
             category=item["category"],
             assigned_store=item["assigned_store"],
             recipes=item["recipes"],

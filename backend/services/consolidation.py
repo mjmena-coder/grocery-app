@@ -109,8 +109,9 @@ def build_consolidated_list(
 
             formatted_output.append({
                 "id": idx + 1,
-                "canonical_name": str(name).strip(), # TODO: change the name, not always canonical now that kitchen staples live here.
+                "canonical_name": str(name).strip(),
                 "quantity_display": qty_str,
+                "original_quantity_display": item.get("original_display_text") or qty_str,
                 "prep_notes": list(prep_notes),
                 "category": str(category).upper().strip(),
                 "assigned_store": str(assigned_store).strip(),
