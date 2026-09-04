@@ -17,7 +17,7 @@ class ParsedIngredientSchema(BaseModel):
         description="Original full line from recipe, e.g., '2 tablespoons finely chopped organic spinach'"
     )
     canonical_name: str = Field(
-        description="Clean, lowercased base ingredient name stripped of quantities, units, and prep instructions, e.g., 'spinach'"
+        description="Specific ingredient name stripped of quantities, units, and prep instructions, keeping full descriptive details (e.g. 'rice ramen noodles', 'leafy dark greens', 'boneless beef chuck')."
     )
     quantity: Optional[float] = Field(
         None, description="Numeric quantity parsed as a float (e.g. 1.5 for '1 1/2'), or null if unstated"
@@ -26,7 +26,7 @@ class ParsedIngredientSchema(BaseModel):
         None, description="Standardized measurement unit (e.g., 'cup', 'tbsp', 'clove', 'oz'), or null for count items"
     )
     size_descriptor: Optional[str] = Field(
-        None, 
+        None,
         description="Physical size, length, or dimensional descriptor (e.g., '1-inch', 'large', 'medium', '3-cm'), or null if absent"
     )
     comment: Optional[str] = Field(
@@ -65,7 +65,7 @@ Instructions:
 1. Extract Title, Yield, Prep Time, Cook Time, Steps, and Notes.
 2. For each ingredient:
    - raw_text: preserve full line context (e.g., '2 cups greens, finely chopped').
-   - canonical_name: extract lowercased base noun (e.g. 'basil', 'ginger').
+   - canonical_name: extract lowercased full ingredient name preserving specific type, cut, or variety (e.g., 'rice ramen noodles', 'leafy dark greens', 'boneless beef chuck'). Do NOT reduce to a single base noun if key descriptors define the ingredient. Only strip quantities, measurement units, and prep instructions (e.g. 'chopped', 'diced').
    - quantity: convert fractions or whole numbers to float (e.g., 2.0).
    - unit: isolate STRICT measurement units ONLY (e.g., 'cup', 'tbsp', 'clove', 'oz', 'piece'). NEVER include prep words like 'chopped' or adjectives like 'fresh'.
    - size_descriptor: extract ONLY physical size/dimensions (e.g., '1-inch', 'large', 'medium', '3-cm'). NEVER include prep actions like 'chopped', 'diced', 'minced', 'grated'.
