@@ -12,7 +12,6 @@ import {
   itemQuantity,
   itemStore,
   deleteGroceryItem,
-  restoreGroceryItem,
   updateGroceryItemQuantity,
   updateGroceryItemStore,
   type ConsolidatedItem,
@@ -62,9 +61,13 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
       return
     }
 
-    const { numeric: currentNum, unit } = parseQuantityAndUnit(item.quantity_display)
+    const currentQtyDisplay = showExactAmounts && item.original_quantity_display
+      ? item.original_quantity_display
+      : itemQuantity(item)
+
+    const { numeric: currentNum, unit } = parseQuantityAndUnit(currentQtyDisplay)
     const newFullDisplay = pluralizeUnit(newNum, unit)
-    const currentFullDisplay = item.quantity_display || currentNum || "0"
+    const currentFullDisplay = currentQtyDisplay || currentNum || "0"
 
     // If nothing changed, exit edit mode
     if (newFullDisplay === currentFullDisplay) {
@@ -108,19 +111,16 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
     }
   }
 
-  // 🛡️ Bulletproof normalizer: handles arrays, API response wrappers, or dictionaries safely
   const safeItems = useMemo<ConsolidatedItem[]>(() => {
     if (Array.isArray(items)) return items
     if (items && typeof items === "object") {
-      // Case A: API response wrapper { status: "ok", items: [...] }
       if ("items" in items && Array.isArray((items as any).items)) {
         return (items as any).items
       }
-      // Case B: Store-grouped dictionary { "King Soopers": [...], "Whole Foods": [...] }
       return Object.values(items).flat() as ConsolidatedItem[]
     }
     return []
-  }, [items]) 
+  }, [items])
 
   const copyStore = async (store: string, storeItems: ConsolidatedItem[]) => {
     const ok = await copyToClipboard(formatItemsForKeep(storeItems))
@@ -132,7 +132,6 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
 
   const groups = useMemo<StoreGroup[]>(() => {
     const byStore = new Map<string, ConsolidatedItem[]>()
-    // Use safeItems instead of items here:
     for (const item of safeItems) {
       const store = itemStore(item)
       if (!byStore.has(store)) byStore.set(store, [])
@@ -167,7 +166,6 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
         method: "PATCH",
       })
     } catch {
-      // Revert optimistic update if the backend call fails.
       setCheckedOverrides((prev) => ({ ...prev, [item.id]: !next }))
     }
   }
@@ -254,9 +252,12 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
                     <ul className="space-y-1">
                       {cat.items.map((item) => {
                         const isChecked = checkedOverrides[item.id] ?? itemChecked(item)
-                        const qty = showExactAmounts && item.original_quantity_display
+                        const activeQty = showExactAmounts && item.original_quantity_display
                           ? item.original_quantity_display
                           : itemQuantity(item)
+                        
+                        const { unit: parsedUnit } = parseQuantityAndUnit(activeQty)
+
                         return (
                           <li key={item.id}>
                             <div className="group flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition hover:bg-secondary">
@@ -276,7 +277,6 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
                                   {isChecked && <Check className="h-3.5 w-3.5" />}
                                 </span>
 
-                                {/* Item Name & Recipe Provenance Column */}
                                 <div className="flex flex-col flex-1 min-w-0">
                                   <span
                                     className={`text-sm transition truncate ${
@@ -304,7 +304,6 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
                                 </span>
                               )}
 
-                              {/* Quantity Editing and Original Quantity Display */}
                               <div className="flex items-center gap-1.5 shrink-0">
                                 {editingItemId === item.id ? (
                                   <div className="flex items-center gap-1">
@@ -321,9 +320,9 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
                                         if (e.key === "Escape") setEditingItemId(null)
                                       }}
                                     />
-                                    {parseQuantityAndUnit(item.quantity_display).unit && (
+                                    {parsedUnit && (
                                       <span className="text-xs text-muted-foreground font-medium select-none">
-                                        {parseQuantityAndUnit(item.quantity_display).unit}
+                                        {parsedUnit}
                                       </span>
                                     )}
                                     <button
@@ -336,21 +335,16 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-1">
-                                    {qty && (
-                                      <span className="text-xs tabular-nums text-muted-foreground">
-                                        {qty}
-                                      </span>
-                                    )}
-                                    {item.original_quantity_display && item.original_quantity_display !== item.quantity_display && (
-                                      <span className="text-[10px] text-muted-foreground/60 line-through">
-                                        (was {item.original_quantity_display})
+                                    {activeQty && (
+                                      <span className="text-xs tabular-nums text-muted-foreground font-medium">
+                                        {activeQty}
                                       </span>
                                     )}
                                     <button
                                       type="button"
                                       title="Edit quantity"
                                       onClick={() => {
-                                        const { numeric } = parseQuantityAndUnit(item.quantity_display)
+                                        const { numeric } = parseQuantityAndUnit(activeQty)
                                         setEditingItemId(item.id)
                                         setEditQuantityText(numeric)
                                       }}
@@ -362,7 +356,6 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
                                 )}
                               </div>
 
-                              {/* Actions: Move Store & Soft Delete */}
                               <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 <button
                                   type="button"
@@ -383,7 +376,6 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
                               </div>
                             </div>
 
-                            {/* Quick Store Selector Dropdown */}
                             {movingItem?.id === item.id && (
                               <div className="mt-2 ml-8 p-2 rounded-lg border border-border bg-popover shadow-md flex flex-wrap items-center gap-1.5 text-xs">
                                 <span className="text-muted-foreground font-medium mr-1">Move to:</span>

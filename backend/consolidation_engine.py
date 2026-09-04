@@ -328,12 +328,21 @@ def consolidate_ingredients(ingredients: List[Ingredient]) -> List[Dict]:
                 else:
                     final_count = round(converted_counts, 1)
                 out_quantity = final_count
-                out_unit = target_unit
-                shopping_display = f"{int(final_count) if final_count.is_integer() else final_count} {_pluralize_unit(target_unit, final_count)}"
+                formatted_num = str(int(final_count) if final_count.is_integer() else final_count)
+                if target_unit in ("onion", "yellow onion", "red onion", "white onion", "sweet onion", "shallot", "bell pepper", "green bell pepper", "red bell pepper", "carrot", "lemon", "lime", "egg"):
+                    out_unit = ""
+                    shopping_display = formatted_num
+                else:
+                    out_unit = target_unit
+                    shopping_display = f"{formatted_num} {_pluralize_unit(target_unit, final_count)}"
             elif rule.get("default_qty"):
                 out_quantity = float(rule["default_qty"])
-                out_unit = target_unit
-                shopping_display = f"{rule['default_qty']} {_pluralize_unit(target_unit, rule['default_qty'])}"
+                if target_unit in ("bunch", "pack", "piece"):
+                    out_unit = target_unit
+                    shopping_display = f"{rule['default_qty']} {_pluralize_unit(target_unit, rule['default_qty'])}"
+                else:
+                    out_unit = ""
+                    shopping_display = str(rule['default_qty'])
 
         if not shopping_display:
             shopping_display = exact_display
