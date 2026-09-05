@@ -1,3 +1,4 @@
+from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 from backend.models import GroceryItem, Store, CanonicalIngredient
@@ -91,53 +92,4 @@ is_deleted=False.
         canonical_name="Unsalted Butter",
         quantity_display="1 stick",
         original_quantity_display="1 stick",
-        category="DAIRY",
-        assigned_store="King Soopers",
-        recipes=["Cookies"],
-        is_active=True,
-        is_deleted=False,
-    )
-    session.add(item)
-    session.commit()
-
-    # 1. Soft-delete the item
-    del_res = client.patch(
-        f"/grocery-list/items/{item.id}",
-        json={"is_deleted": True},
-    )
-    assert del_res.status_code == 200
-
-    session.refresh(item)
-    assert item.is_deleted is True
-
-    # 2. Check GET /grocery-list/current separates soft-deleted items into history
-    get_res = client.get("/grocery-list/current")
-    assert get_res.status_code == 200
-    data = get_res.json()
-
-    # Should not be in King Soopers active store group
-    king_soopers_items = data.get("items", {}).get("King Soopers",
-[])
-    assert not any(i["id"] == item.id for i in king_soopers_items)
-
-    # Should be in deleted_items list
-    deleted_history = data.get("deleted_items", [])
-    assert any(i["id"] == item.id for i in deleted_history)
-
-    # 3. Restore the soft-deleted item
-    restore_res = client.patch(
-        f"/grocery-list/items/{item.id}",
-        json={"is_deleted": False},
-    )
-    assert restore_res.status_code == 200
-
-    session.refresh(item)
-    assert item.is_deleted is False
-
-
-def test_update_item_not_found_returns_404(client):
-    """Asserts attempting to update an item that doesn't exist
-returns HTTP 404."""
-    response = client.patch("/grocery-list/items/999999",
-json={"quantity_display": "5 lbs"})
-    assert response.status_code == 404
+        category

@@ -1,20 +1,14 @@
 from datetime import datetime
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from backend.models import GroceryItem, Store, CanonicalIngredient
 from backend.utils.units import adjust_unit_plurality
 
 def save_generated_list(session: Session, consolidated_items: List[Dict[str, Any]], kitchen_staples: List[Dict[str, Any]]) -> None:
-    """Deactivates old active items and persists newly generated grocery items and kitchen staples."""
-    existing_active = session.scalars(
-        select(GroceryItem).where(GroceryItem.is_active == True)
-    ).all()
-    
-    for old_item in existing_active:
-        old_item.is_active = False
-        session.add(old_item)
+    """Deletes all previous grocery items and persists newly generated grocery items and kitchen staples."""
+    session.execute(delete(GroceryItem))
 
     for item in consolidated_items:
         session.add(GroceryItem(
