@@ -100,7 +100,12 @@ export function recipeIsFavorite(r: Recipe): boolean {
 }
 
 export function recipeImage(r: Recipe): string | null {
-  return r.image_url || r.photo_url || r.image || null
+  const img = r.image_url || r.photo_url || r.image || null
+  if (!img) return null
+  if (img.startsWith("http://") || img.startsWith("https://")) {
+    return img
+  }
+  return `${getApiBase()}${img.startsWith("/") ? img : `/${img}`}`
 }
 
 // Total time in minutes, coercing loosely-typed backend values.

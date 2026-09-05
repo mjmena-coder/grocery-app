@@ -98,40 +98,43 @@ export function RecipeDetailDrawer({ recipe, open, onClose }: RecipeDetailDrawer
         aria-label={recipeTitle(full)}
         className="relative mt-auto flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-border bg-card shadow-xl sm:mt-0 sm:rounded-3xl"
       >
-        <div className="relative h-44 shrink-0 overflow-hidden group">
+        <div className="relative h-48 w-full shrink-0 overflow-hidden bg-secondary">
           {img ? (
             <img
-              src={img || "/placeholder.svg"}
+              src={img}
               alt={recipeTitle(full)}
               className="h-full w-full object-cover"
               crossOrigin="anonymous"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-secondary">
+            <div className="flex h-full w-full items-center justify-center">
               <ChefHat className="h-10 w-10 text-muted-foreground" />
             </div>
           )}
 
           {/* Photo Upload Overlay Button */}
-          <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
-            <div className="flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-md backdrop-blur">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-90 transition sm:opacity-0 sm:hover:opacity-100">
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-full bg-background/90 px-3.5 py-1.5 text-xs font-semibold text-foreground shadow-md backdrop-blur active:scale-95">
               {uploadingImage ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
               ) : (
-                <Camera className="h-4 w-4" />
+                <Camera className="h-4 w-4 text-primary" />
               )}
               <span>{img ? "Change Photo" : "Add Photo"}</span>
-            </div>
-            <input
-              type="file"
-              accept="image/*"
-              disabled={uploadingImage}
-              onChange={(e) => handlePhotoUpload(e.target.files?.[0] || null)}
-              className="hidden"
-            />
-          </label>
+              <input
+                type="file"
+                accept="image/*"
+                disabled={uploadingImage}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  handlePhotoUpload(e.target.files?.[0] || null)
+                }}
+                className="hidden"
+              />
+            </label>
+          </div>
 
-          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-card to-transparent pointer-events-none" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
 
           <button
             type="button"
