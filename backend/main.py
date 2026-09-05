@@ -1,5 +1,7 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import backend.models
 from backend.database import engine, Base
 from backend.api.routes import recipes, canonical, grocery_list, stores
@@ -11,6 +13,9 @@ app = FastAPI(
     version="1.0.0",
     description="VLM-powered recipe extractor and automated store routing system."
 )
+
+os.makedirs("uploads/recipes", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Configure CORS
 app.add_middleware(

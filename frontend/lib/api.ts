@@ -154,6 +154,26 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
+export async function uploadRecipePhoto(
+  recipeId: number,
+  file: File
+): Promise<{ image_url: string }> {
+  const formData = new FormData()
+  formData.append("image", file)
+
+  const res = await fetch(apiUrl(`/recipes/${recipeId}/image`), {
+    method: "POST",
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new Error(errBody.detail || `Failed to upload image: ${res.status}`)
+  }
+
+  return res.json()
+}
+
 export async function updateGroceryItemStore(
   itemId: number,
   assignedStore: string,
