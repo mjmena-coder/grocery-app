@@ -33,6 +33,7 @@ class Recipe(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str]
+    image_url: Mapped[Optional[str]]
     source: Mapped[Optional[str]]
     steps: Mapped[Optional[str]]    
     yield_info: Mapped[Optional[str]]
