@@ -8,7 +8,9 @@ from backend.utils.units import adjust_unit_plurality
 
 def save_generated_list(session: Session, consolidated_items: List[Dict[str, Any]], kitchen_staples: List[Dict[str, Any]]) -> None:
     """Deletes all previous grocery items and persists newly generated grocery items and kitchen staples."""
-    session.execute(delete(GroceryItem))
+    session.execute(
+        delete(GroceryItem).execution_options(synchronize_session="fetch")
+    )
 
     for item in consolidated_items:
         session.add(GroceryItem(
