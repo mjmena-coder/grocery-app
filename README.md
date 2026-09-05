@@ -13,6 +13,8 @@ An AI-powered recipe management and grocery consolidation platform. Scan physica
   - Organic routing support for "Dirty Dozen" produce items.
 - **Kitchen Staples Segregation**: Identifies pantry/staple items (salt, oil, spices) and isolates them in a dedicated drawer so shopping lists stay focused.
 - **Interactive Web App**: Next.js React frontend featuring recipe flipping / deck browsing, batch recipe selection for weekly planning, soft deletion with restoration, in-line quantity editing, and one-click copy to clipboard formatted for Google Keep.
+- **Recipe Photo Management**: Upload or update photos for extracted and existing
+recipes, with local storage and static file serving.
 
 ---
 
@@ -87,4 +89,7 @@ An AI-powered recipe management and grocery consolidation platform. Scan physica
 ## 🧪 Running Tests
 
 Run backend tests using `pytest`:
+```bash
+pytest
+```
 
