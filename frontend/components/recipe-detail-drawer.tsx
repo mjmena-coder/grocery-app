@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, Clock, Flame, Users, Star, Loader2, AlertCircle, ChefHat } from "lucide-react"
+import { X, Clock, Flame, Users, Star, Loader2, AlertCircle, ChefHat, Camera } from "lucide-react"
 import {
   apiUrl,
   ingredientLabel,
@@ -9,6 +9,7 @@ import {
   recipeIsFavorite,
   recipeTitle,
   recipeTotalMinutes,
+  uploadRecipePhoto,
   type Recipe,
 } from "@/lib/api"
 
@@ -22,6 +23,7 @@ export function RecipeDetailDrawer({ recipe, open, onClose }: RecipeDetailDrawer
   const [full, setFull] = useState<Recipe | null>(recipe)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   useEffect(() => {
     setFull(recipe)
@@ -56,6 +58,19 @@ export function RecipeDetailDrawer({ recipe, open, onClose }: RecipeDetailDrawer
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
+  const handlePhotoUpload = async (file: File | null) => {
+    if (!file || !full) return
+    setUploadingImage(true)
+    try {
+      const res = await uploadRecipePhoto(full.id, file)
+      setFull((prev) => (prev ? { ...prev, image_url: res.image_url } : null))
+    } catch {
+      setError("Failed to upload photo.")
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
   if (!open || !full) return null
 
   const img = recipeImage(full)
@@ -83,30 +98,55 @@ export function RecipeDetailDrawer({ recipe, open, onClose }: RecipeDetailDrawer
         aria-label={recipeTitle(full)}
         className="relative mt-auto flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-border bg-card shadow-xl sm:mt-0 sm:rounded-3xl"
       >
-        <div className="relative h-44 shrink-0 overflow-hidden">
+        <div className="relative h-48 w-full shrink-0 overflow-hidden bg-secondary">
           {img ? (
             <img
-              src={img || "/placeholder.svg"}
+              src={img}
               alt={recipeTitle(full)}
               className="h-full w-full object-cover"
               crossOrigin="anonymous"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-secondary">
+            <div className="flex h-full w-full items-center justify-center">
               <ChefHat className="h-10 w-10 text-muted-foreground" />
             </div>
           )}
-          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-card to-transparent" />
+
+          {/* Photo Upload Overlay Button */}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-90 transition sm:opacity-0 sm:hover:opacity-100">
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-full bg-background/90 px-3.5 py-1.5 text-xs font-semibold text-foreground shadow-md backdrop-blur active:scale-95">
+              {uploadingImage ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <Camera className="h-4 w-4 text-primary" />
+              )}
+              <span>{img ? "Change Photo" : "Add Photo"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                disabled={uploadingImage}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  handlePhotoUpload(e.target.files?.[0] || null)
+                }}
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
+
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm backdrop-blur transition hover:bg-background"
+            className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm backdrop-blur transition hover:bg-background"
           >
             <X className="h-4 w-4" />
           </button>
+
           {recipeIsFavorite(full) && (
-            <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 text-xs font-medium text-accent-foreground shadow-sm backdrop-blur">
+            <span className="absolute left-3 top-3 z-10 flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 text-xs font-medium text-accent-foreground shadow-sm backdrop-blur">
               <Star className="h-3.5 w-3.5 fill-accent text-accent" /> Favorite
             </span>
           )}

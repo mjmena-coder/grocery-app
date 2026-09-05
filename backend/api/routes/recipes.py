@@ -1,3 +1,6 @@
+import os
+import shutil
+import uuid
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
@@ -27,6 +30,35 @@ async def extract_recipe(
     and persist recipe metadata to SQLite.
     """
     return process_and_save_recipe(session, image)
+
+
+@router.post("/{recipe_id}/image")
+def upload_recipe_image(
+    recipe_id: int,
+    image: UploadFile = File(...),
+    session: Session = Depends(get_session)
+):
+    """Upload and set an image photo for a given recipe."""
+    recipe = session.get(Recipe, recipe_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    upload_dir = os.path.join("uploads", "recipes")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    ext = os.path.splitext(image.filename)[1] or ".jpg"
+    filename = f"recipe_{recipe_id}_{uuid.uuid4().hex[:8]}{ext}"
+    file_path = os.path.join(upload_dir, filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(image.file, buffer)
+
+    image_url = f"/uploads/recipes/{filename}"
+    recipe.image_url = image_url
+    session.commit()
+    session.refresh(recipe)
+
+    return {"status": "ok", "recipe_id": recipe.id, "image_url": image_url}
 
 
 @router.get("/")
@@ -68,6 +100,7 @@ def get_recipe(recipe_id: int, session: Session = Depends(get_session)):
         "recipe": {
             "id": recipe.id,
             "title": recipe.title,
+            "image_url": recipe.image_url,
             "source": recipe.source,
             "steps": recipe.steps.split("\n") if recipe.steps else [],
             "yield_info": recipe.yield_info,

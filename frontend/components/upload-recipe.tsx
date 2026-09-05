@@ -8,14 +8,20 @@ import {
   CheckCircle2,
   AlertCircle,
   Sparkles,
+  Camera,
 } from "lucide-react"
-import { apiUrl } from "@/lib/api"
+import { apiUrl, uploadRecipePhoto } from "@/lib/api"
 
 export function UploadRecipe() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null)
+  const [status, setStatus] = useState<{
+    type: "success" | "error"
+    message: string
+    recipeId?: number
+  } | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   const onSelect = (file: File | null) => {
     setSelectedFile(file)
@@ -49,8 +55,8 @@ export function UploadRecipe() {
       const data = await res.json()
       setStatus({
         type: "success",
-        // TODO: The second sentence here is suspect. Not sure we route to stores just yet...
-        message: `Extracted and saved "${data.title || "New Recipe"}". Ingredients linked and routed to stores.`,
+        message: `Extracted and saved "${data.title || "New Recipe"}".`,
+        recipeId: data.recipe_id,
       })
       // Runs function to clear selected file after successful extraction.
       onSelect(null)
@@ -62,6 +68,30 @@ export function UploadRecipe() {
     } finally {
       // Always return uploading block to false regardless (probably).
       setUploading(false)
+    }
+  }
+
+  const handleAttachPhoto = async (file: File | null) => {
+    if (!file || !status?.recipeId) return
+    setUploadingPhoto(true)
+    try {
+      await uploadRecipePhoto(status.recipeId, file)
+      setStatus({
+        type: "success",
+        message: `Updated photo for recipe.`,
+        recipeId: status.recipeId,
+      })
+    } catch (err) {
+      setStatus((prev) =>
+        prev
+          ? {
+              ...prev,
+              message: err instanceof Error ? err.message : "Failed to upload photo.",
+            }
+          : null
+      )
+    } finally {
+      setUploadingPhoto(false)
     }
   }
 
@@ -133,18 +163,36 @@ export function UploadRecipe() {
         {status && (
           <div
             role="status"
-            className={`mt-5 flex items-start gap-3 rounded-xl border p-4 text-sm ${
+            className={`mt-5 flex flex-col gap-3 rounded-xl border p-4 text-sm ${
               status.type === "success"
                 ? "border-primary/30 bg-primary/5 text-foreground"
                 : "border-destructive/30 bg-destructive/5 text-foreground"
             }`}
           >
-            {status.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
-            ) : (
-              <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+            <div className="flex items-start gap-3">
+              {status.type === "success" ? (
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
+              ) : (
+                <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+              )}
+              <span>{status.message}</span>
+            </div>
+
+            {status.type === "success" && status.recipeId && (
+              <div className="mt-1 flex items-center gap-2 border-t border-border/40 pt-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition hover:bg-secondary">
+                  <Camera className="h-4 w-4 text-primary" />
+                  {uploadingPhoto ? "Uploading Photo..." : "Add / Update Photo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingPhoto}
+                    onChange={(e) => handleAttachPhoto(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+              </div>
             )}
-            <span>{status.message}</span>
           </div>
         )}
       </form>
