@@ -10,16 +10,19 @@ from backend.services.canonical_service import resolve_or_create_canonical_ingre
 from backend.services.vlm_service import extract_recipe_from_image
 from backend.services.confidence_service import calculate_extraction_confidence
 from backend.utils.kitchen_staples import KITCHEN_STAPLE_INGREDIENTS
+from backend.utils.image import process_uploaded_image_bytes
 
 def process_and_save_recipe(session: Session, image: UploadFile) -> dict:
     """
     Handles file upload, VLM extraction, metadata parsing, 
     canonical linking, and SQLite persistence.
     """
-    # 1. Handle temporary file
-    suffix = os.path.splitext(image.filename)[1] or ".jpg"
+    # 1. Handle image conversion & temporary file
+    raw_bytes = image.file.read()
+    image_bytes, suffix = process_uploaded_image_bytes(raw_bytes, image.filename)
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(image.file, tmp)
+        tmp.write(image_bytes)
         tmp_path = tmp.name
 
     try:

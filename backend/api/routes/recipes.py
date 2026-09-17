@@ -10,6 +10,7 @@ from sqlalchemy import select
 from backend.database import get_session
 from backend.services.recipe_service import process_and_save_recipe
 from backend.models import Recipe
+from backend.utils.image import process_uploaded_image_bytes
 
 router = APIRouter(prefix="/recipes", tags=["Recipes"])
 
@@ -46,12 +47,14 @@ def upload_recipe_image(
     upload_dir = os.path.join("uploads", "recipes")
     os.makedirs(upload_dir, exist_ok=True)
 
-    ext = os.path.splitext(image.filename)[1] or ".jpg"
+    raw_bytes = image.file.read()
+    image_bytes, ext = process_uploaded_image_bytes(raw_bytes, image.filename)
+
     filename = f"recipe_{recipe_id}_{uuid.uuid4().hex[:8]}{ext}"
     file_path = os.path.join(upload_dir, filename)
 
     with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(image.file, buffer)
+        buffer.write(image_bytes)
 
     image_url = f"/uploads/recipes/{filename}"
     recipe.image_url = image_url

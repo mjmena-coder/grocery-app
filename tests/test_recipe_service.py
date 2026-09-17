@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from fastapi import UploadFile
 from io import BytesIO
 
@@ -55,3 +55,26 @@ def test_process_and_save_recipe_full_metadata(mock_extract, session):
     assert saved_recipe.notes == ["Use gluten-free pasta if needed."]
     assert saved_recipe.extraction_confidence is not None
     assert len(saved_recipe.ingredients) == 2
+
+
+@patch("backend.services.recipe_service.extract_recipe_from_image")
+@patch("backend.services.recipe_service.process_uploaded_image_bytes")
+def test_process_and_save_recipe_heic_image_processing(mock_process, mock_extract, session):
+    mock_vlm_recipe = MagicMock()
+    mock_vlm_recipe.title = "HEIC Test Recipe"
+    mock_vlm_recipe.steps = ["Step 1"]
+    mock_vlm_recipe.yield_info = "2 servings"
+    mock_vlm_recipe.prep_time = "10 mins"
+    mock_vlm_recipe.cook_time = "15 mins"
+    mock_vlm_recipe.notes = None
+    mock_vlm_recipe.ingredients = []
+    mock_extract.return_value = mock_vlm_recipe
+
+    mock_process.return_value = (b"processed_bytes", ".jpg")
+
+    upload_file = UploadFile(filename="photo.heic", file=BytesIO(b"raw_heic_data"))
+
+    result = process_and_save_recipe(session, upload_file)
+
+    assert result["title"] == "HEIC Test Recipe"
+    mock_process.assert_called_once_with(b"raw_heic_data", "photo.heic")
