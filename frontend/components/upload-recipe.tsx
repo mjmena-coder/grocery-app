@@ -12,7 +12,19 @@ import {
 } from "lucide-react"
 import { apiUrl, uploadRecipePhoto } from "@/lib/api"
 
-export function UploadRecipe() {
+interface UploadRecipeProps {
+  isBusy?: boolean
+  busyFilename?: string | null
+  onUploadStarted?: () => void
+  onUploadFinished?: () => void
+}
+
+export function UploadRecipe({
+  isBusy = false,
+  busyFilename,
+  onUploadStarted,
+  onUploadFinished,
+}: UploadRecipeProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -23,7 +35,10 @@ export function UploadRecipe() {
   } | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
+  const isLocked = isBusy || uploading
+
   const onSelect = (file: File | null) => {
+    if (isLocked) return
     setSelectedFile(file)
     setStatus(null)
     if (previewUrl) URL.revokeObjectURL(previewUrl)
@@ -32,23 +47,21 @@ export function UploadRecipe() {
 
   const handleUpload = async (e: FormEvent) => {
     e.preventDefault()
-    if (!selectedFile) return
+    if (!selectedFile || isLocked) return
 
     setUploading(true)
     setStatus(null)
+    onUploadStarted?.()
 
     const formData = new FormData()
-    // Uses correct upload type (image).
     formData.append("image", selectedFile)
 
-    // Image entry acquired and checked, time to POST to 'extract' endpoint.
     try {
       const res = await fetch(apiUrl("/recipes/extract"), {
         method: "POST",
         body: formData,
       })
       if (!res.ok) {
-        // Return error.
         const errBody = await res.json().catch(() => ({}))
         throw new Error(errBody.detail || `Server returned status ${res.status}`)
       }
@@ -58,7 +71,6 @@ export function UploadRecipe() {
         message: `Extracted and saved "${data.title || "New Recipe"}".`,
         recipeId: data.recipe_id,
       })
-      // Runs function to clear selected file after successful extraction.
       onSelect(null)
     } catch (err) {
       setStatus({
@@ -66,8 +78,8 @@ export function UploadRecipe() {
         message: err instanceof Error ? err.message : "Failed to extract recipe.",
       })
     } finally {
-      // Always return uploading block to false regardless (probably).
       setUploading(false)
+      onUploadFinished?.()
     }
   }
 
@@ -112,12 +124,19 @@ export function UploadRecipe() {
         onSubmit={handleUpload}
         className="rounded-2xl border border-border bg-card p-6 shadow-sm"
       >
-        <label className="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/40 px-6 py-12 text-center transition hover:border-primary hover:bg-secondary">
+        <label
+          className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/40 px-6 py-12 text-center transition ${
+            isLocked
+              ? "cursor-not-allowed opacity-60"
+              : "cursor-pointer hover:border-primary hover:bg-secondary"
+          }`}
+        >
           <input
             type="file"
             accept="image/*"
+            disabled={isLocked}
             onChange={(e) => onSelect(e.target.files?.[0] || null)}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
             aria-label="Upload cookbook photo"
           />
           {previewUrl ? (
@@ -134,6 +153,15 @@ export function UploadRecipe() {
           )}
           {selectedFile ? (
             <p className="font-medium text-primary">{selectedFile.name}</p>
+          ) : isLocked ? (
+            <>
+              <p className="font-display font-semibold text-foreground">
+                Extraction in progress…
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {busyFilename ? `Processing ${busyFilename}` : "Please wait for current scan to complete"}
+              </p>
+            </>
           ) : (
             <>
               <p className="font-display font-semibold text-foreground">
@@ -146,10 +174,10 @@ export function UploadRecipe() {
 
         <button
           type="submit"
-          disabled={!selectedFile || uploading}
+          disabled={!selectedFile || isLocked}
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {uploading ? (
+          {isLocked ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" /> Scanning with Qwen2.5-VL…
             </>

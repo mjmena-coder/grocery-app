@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from backend.database import get_session
 from backend.services.recipe_service import process_and_save_recipe
+from backend.services.extraction_state import extraction_state
 from backend.models import Recipe
 from backend.utils.image import process_uploaded_image_bytes
 
@@ -21,8 +22,14 @@ class RecipeUpdateSchema(BaseModel):
     source: Optional[str] = None
 
 
+@router.get("/extract/status")
+def get_extract_status():
+    """Check if a recipe extraction is currently in progress across the system."""
+    return extraction_state.get_status()
+
+
 @router.post("/extract")
-async def extract_recipe(
+def extract_recipe(
     image: UploadFile = File(...),
     session: Session = Depends(get_session)
 ):
@@ -30,7 +37,22 @@ async def extract_recipe(
     Upload a recipe image, run VLM extraction, parse & link canonical ingredients,
     and persist recipe metadata to SQLite.
     """
-    return process_and_save_recipe(session, image)
+    if not extraction_state.acquire(image.filename):
+        raise HTTPException(
+            status_code=409,
+            detail="Another recipe extraction is currently in progress. Please wait for it to finish."
+        )
+
+    try:
+        result = process_and_save_recipe(session, image)
+        extraction_state.release(recipe_data={
+            "recipe_id": result.get("recipe_id"),
+            "title": result.get("title")
+        })
+        return result
+    except Exception:
+        extraction_state.release(recipe_data=None)
+        raise
 
 
 @router.post("/{recipe_id}/image")
