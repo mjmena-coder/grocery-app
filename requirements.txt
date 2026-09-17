@@ -6,3 +6,5 @@ pint
 ingredient-parser-nlp
 sqlalchemy>=2.0
 pytest
+pillow
+pillow-heif
