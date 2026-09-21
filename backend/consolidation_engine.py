@@ -273,7 +273,7 @@ def consolidate_ingredients(ingredients: List[Ingredient]) -> List[Dict]:
         # 1. Exact Recipe Measurement
         if grp.vol_ml > 0:
             qty_vol = grp.vol_ml * ureg.milliliter
-            if grp.vol_ml < 118.0:
+            if grp.vol_ml < 59.0:
                 tbsp = qty_vol.to("tablespoon").magnitude
                 if tbsp < 1.0:
                     tsp = qty_vol.to("teaspoon").magnitude
