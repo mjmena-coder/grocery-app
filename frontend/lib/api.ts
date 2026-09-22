@@ -244,3 +244,22 @@ export function formatItemsForKeep(items: ConsolidatedItem[]): string {
     })
     .join("\n")
 }
+
+export async function quickAddGroceryItem(
+  canonicalName: string,
+  store: string,
+  category: string = "Pantry & Staples"
+): Promise<void> {
+  const res = await fetch(apiUrl("/grocery-list/quick-add"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      canonical_name: canonicalName,
+      store,
+      category,
+    }),
+  })
+  if (!res.ok) {
+    throw new Error(`Failed to add item: ${res.statusText}`)
+  }
+}

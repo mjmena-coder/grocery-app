@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { Loader2, AlertCircle, RefreshCw, Plus } from "lucide-react"
 import { apiUrl, type ConsolidatedItem } from "@/lib/api"
 import { StoreSplitView } from "@/components/store-split-view"
 import { KitchenStaplesModal } from "@/components/kitchen-staples-modal"
+import { FrequentItemsModal } from "@/components/frequent-items-modal"
 
 export function StoreLists() {
   const [items, setItems] = useState<ConsolidatedItem[]>([])
@@ -14,6 +15,7 @@ export function StoreLists() {
   
   // State for controlling the modal
   const [showStaplesModal, setShowStaplesModal] = useState(false)
+  const [showFrequentModal, setShowFrequentModal] = useState(false)
 
   const fetchItems = async () => {
     setLoading(true)
@@ -63,6 +65,15 @@ export function StoreLists() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setShowFrequentModal(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary"
+          >
+            <Plus className="h-4 w-4" />
+            Add Frequent Items
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowStaplesModal(true)}
             className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary"
           >
@@ -106,6 +117,14 @@ export function StoreLists() {
         isOpen={showStaplesModal}
         onClose={() => setShowStaplesModal(false)}
         staples={kitchenStaples}
+        onRefresh={fetchItems}
+      />
+
+      {/* Frequent Items Modal */}
+      <FrequentItemsModal
+        isOpen={showFrequentModal}
+        onClose={() => setShowFrequentModal(false)}
+        stores={["King Soopers", "Trader Joe's", "Whole Foods"]}
         onRefresh={fetchItems}
       />
     </div>

@@ -28,6 +28,12 @@ class UpdateListItemSchema(BaseModel):
     save_as_default: bool = False
 
 
+class QuickAddItemSchema(BaseModel):
+    canonical_name: str
+    store: str
+    category: Optional[str] = "Pantry & Staples"
+
+
 @router.post("/generate")
 def generate_grocery_list(
     payload: GenerateListSchema,
@@ -55,6 +61,26 @@ def get_current_list(session: Session = Depends(get_session)):
     """Fetch active weekly grocery items grouped by store, kitchen staples, and deleted items history."""
     data = fetch_current_list_grouped(session)
     return {"status": "ok", **data}
+
+
+@router.post("/quick-add")
+def quick_add_grocery_item(
+    payload: QuickAddItemSchema,
+    session: Session = Depends(get_session)
+):
+    """Manually add a frequent staple item directly to an active store list."""
+    session.add(GroceryItem(
+        canonical_name=payload.canonical_name,
+        quantity_display="1",
+        original_quantity_display="1",
+        category=payload.category or "Pantry & Staples",
+        assigned_store=payload.store,
+        recipes=[],
+        is_active=True,
+        is_checked=False
+    ))
+    session.commit()
+    return {"status": "added", "item": payload.canonical_name, "store": payload.store}
 
 
 @router.patch("/items/{item_id}")
