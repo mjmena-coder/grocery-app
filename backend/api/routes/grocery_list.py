@@ -32,6 +32,7 @@ class QuickAddItemSchema(BaseModel):
     canonical_name: str
     store: str
     category: Optional[str] = "Pantry & Staples"
+    quantity_display: Optional[str] = "1"
 
 
 @router.post("/generate")
@@ -71,8 +72,8 @@ def quick_add_grocery_item(
     """Manually add a frequent staple item directly to an active store list."""
     session.add(GroceryItem(
         canonical_name=payload.canonical_name,
-        quantity_display="1",
-        original_quantity_display="1",
+        quantity_display=payload.quantity_display or "1",
+        original_quantity_display=payload.quantity_display or "1",
         category=payload.category or "Pantry & Staples",
         assigned_store=payload.store,
         recipes=[],

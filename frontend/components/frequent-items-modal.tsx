@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Check, ShoppingBag, X } from "lucide-react"
+import { ShoppingBag, X, Check, Plus, Loader2 } from "lucide-react"
 import { quickAddGroceryItem } from "@/lib/api"
 
 interface FrequentItemsModalProps {
@@ -11,21 +11,22 @@ interface FrequentItemsModalProps {
   onRefresh?: () => void
 }
 
-const FREQUENT_ITEMS = [
-  { name: "Eggs", category: "Dairy & Eggs" },
-  { name: "Milk", category: "Dairy & Eggs" },
+interface StagedItem {
+  name: string
+  category: string
+  defaultQuantity?: string
+}
+
+const FREQUENT_ITEMS: StagedItem[] = [
+  { name: "Eggs", category: "Dairy & Eggs", defaultQuantity: "1 dozen" },
+  { name: "Milk", category: "Dairy & Eggs", defaultQuantity: "1 gal" },
   { name: "Yogurt", category: "Dairy & Eggs" },
   { name: "Butter", category: "Dairy & Eggs" },
-  { name: "Cheese", category: "Dairy & Eggs" },
   { name: "Bread", category: "Bakery" },
   { name: "Coffee", category: "Pantry" },
-  { name: "Bananas", category: "Produce" },
-  { name: "Apples", category: "Produce" },
+  { name: "Bananas", category: "Produce", defaultQuantity: "1 bunch" },
+  { name: "Apples", category: "Produce", defaultQuantity: "2" },
   { name: "Avocados", category: "Produce" },
-  { name: "Onions", category: "Produce" },
-  { name: "Garlic", category: "Produce" },
-  { name: "Olive Oil", category: "Pantry" },
-  { name: "Sparkling Water", category: "Beverages" },
 ]
 
 export function FrequentItemsModal({
@@ -35,21 +36,47 @@ export function FrequentItemsModal({
   onRefresh,
 }: FrequentItemsModalProps) {
   const [selectedStore, setSelectedStore] = useState(stores[0] || "King Soopers")
-  const [addingItem, setAddingItem] = useState<string | null>(null)
-  const [addedItems, setAddedItems] = useState<Set<string>>(new Set())
+  const [stagedNames, setStagedNames] = useState<Set<string>>(new Set())
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (!isOpen) return null
 
-  const handleAddItem = async (item: { name: string; category: string }) => {
-    setAddingItem(item.name)
+  const toggleStage = (itemName: string) => {
+    setStagedNames((prev) => {
+      const next = new Set(prev)
+      if (next.has(itemName)) {
+        next.delete(itemName)
+      } else {
+        next.add(itemName)
+      }
+      return next
+    })
+  }
+
+  const handleAddStagedItems = async () => {
+    if (stagedNames.size === 0) {
+      onClose()
+      return
+    }
+
+    setIsSubmitting(true)
     try {
-      await quickAddGroceryItem(item.name, selectedStore, item.category)
-      setAddedItems((prev) => new Set(prev).add(item.name))
+      const itemsToAdd = FREQUENT_ITEMS.filter((item) => stagedNames.has(item.name))
+      for (const item of itemsToAdd) {
+        await quickAddGroceryItem(
+          item.name,
+          selectedStore,
+          item.category,
+          item.defaultQuantity || "1"
+        )
+      }
+      setStagedNames(new Set())
       onRefresh?.()
+      onClose()
     } catch {
-      alert(`Failed to add ${item.name}`)
+      alert("Failed to add some frequent items.")
     } finally {
-      setAddingItem(null)
+      setIsSubmitting(false)
     }
   }
 
@@ -65,8 +92,9 @@ export function FrequentItemsModal({
           </div>
           <button
             type="button"
+            disabled={isSubmitting}
             onClick={onClose}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-secondary"
+            className="rounded-lg p-1 text-muted-foreground hover:bg-secondary disabled:opacity-50"
           >
             <X className="h-5 w-5" />
           </button>
@@ -79,8 +107,9 @@ export function FrequentItemsModal({
           </label>
           <select
             value={selectedStore}
+            disabled={isSubmitting}
             onChange={(e) => setSelectedStore(e.target.value)}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
           >
             {stores.map((s) => (
               <option key={s} value={s}>
@@ -90,20 +119,19 @@ export function FrequentItemsModal({
           </select>
         </div>
 
-        {/* Frequent Items Grid */}
+        {/* Frequent Items Grid (Staging area) */}
         <div className="my-4 max-h-72 overflow-y-auto grid grid-cols-2 gap-2 pr-1">
           {FREQUENT_ITEMS.map((item) => {
-            const isAdded = addedItems.has(item.name)
-            const isLoading = addingItem === item.name
+            const isStaged = stagedNames.has(item.name)
 
             return (
               <button
                 key={item.name}
                 type="button"
-                disabled={isLoading}
-                onClick={() => handleAddItem(item)}
+                disabled={isSubmitting}
+                onClick={() => toggleStage(item.name)}
                 className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                  isAdded
+                  isStaged
                     ? "border-primary/40 bg-primary/10 text-primary"
                     : "border-border bg-background text-foreground hover:bg-secondary"
                 }`}
@@ -111,10 +139,11 @@ export function FrequentItemsModal({
                 <div className="flex flex-col text-left">
                   <span>{item.name}</span>
                   <span className="text-[10px] text-muted-foreground">
+                    {item.defaultQuantity ? `${item.defaultQuantity} • ` : ""}
                     {item.category}
                   </span>
                 </div>
-                {isAdded ? (
+                {isStaged ? (
                   <Check className="h-4 w-4 shrink-0 text-primary" />
                 ) : (
                   <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -124,13 +153,28 @@ export function FrequentItemsModal({
           })}
         </div>
 
-        <div className="flex justify-end pt-3 border-t border-border">
+        <div className="flex justify-end gap-2 pt-3 border-t border-border">
           <button
             type="button"
+            disabled={isSubmitting}
             onClick={onClose}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
           >
-            Done
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={isSubmitting || stagedNames.size === 0}
+            onClick={handleAddStagedItems}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Adding…
+              </>
+            ) : (
+              `Add ${stagedNames.size > 0 ? `(${stagedNames.size})` : ""}`
+            )}
           </button>
         </div>
       </div>
