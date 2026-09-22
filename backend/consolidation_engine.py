@@ -90,7 +90,7 @@ def _normalize_unit(unit_str: Optional[str]) -> Tuple[Optional[str], float]:
     """Cleans unit strings and strips size descriptors."""
     if not unit_str:
         return None, 1.0
-    
+
     clean = unit_str.strip().lower()
     for desc in sorted(SIZE_DESCRIPTORS, key=len, reverse=True):
         clean = re.sub(rf"\b{re.escape(desc)}\b", "", clean).strip()
@@ -139,37 +139,34 @@ def _get_ingredient_name(ingredient: Ingredient) -> str:
 def _format_quantity_fraction(val: float) -> str:
     if val <= 0:
         return ""
-    whole = int(val)
-    remainder = round(val - whole, 3)
-    if remainder < 0.08:
-        frac_str = ""
-    elif remainder < 0.19:
-        frac_str = "1/8"
-    elif remainder < 0.29:
-        frac_str = "1/4"
-    elif remainder < 0.355:
-        frac_str = "1/3"
-    elif remainder < 0.437:
-        frac_str = "3/8"
-    elif remainder < 0.562:
-        frac_str = "1/2"
-    elif remainder < 0.645:
-        frac_str = "5/8"
-    elif remainder < 0.71:
-        frac_str = "2/3"
-    elif remainder < 0.812:
-        frac_str = "3/4"
-    elif remainder < 0.937:
-        frac_str = "7/8"
-    else:
-        whole += 1
-        frac_str = ""
+    if val >= 1.0:
+        rounded = round(val, 2)
+        return str(int(rounded)) if rounded.is_integer() else f"{rounded:g}"
 
-    if whole > 0 and frac_str:
-        return f"{whole} {frac_str}"
-    elif whole > 0:
-        return str(whole)
-    return frac_str if frac_str else "1"
+    # Pure fractions for values < 1
+    remainder = round(val, 3)
+    if remainder < 0.08:
+        return ""
+    elif remainder < 0.19:
+        return "1/8"
+    elif remainder < 0.29:
+        return "1/4"
+    elif remainder < 0.355:
+        return "1/3"
+    elif remainder < 0.437:
+        return "3/8"
+    elif remainder < 0.562:
+        return "1/2"
+    elif remainder < 0.645:
+        return "5/8"
+    elif remainder < 0.71:
+        return "2/3"
+    elif remainder < 0.812:
+        return "3/4"
+    elif remainder < 0.937:
+        return "7/8"
+    else:
+        return "1"
 
 
 def _pluralize_unit(unit: str, count: float) -> str:
@@ -269,11 +266,11 @@ def consolidate_ingredients(ingredients: List[Ingredient]) -> List[Dict]:
 
     for name, grp in groups.items():
         exact_parts = []
-        
+
         # 1. Exact Recipe Measurement
         if grp.vol_ml > 0:
             qty_vol = grp.vol_ml * ureg.milliliter
-            if grp.vol_ml < 118.0:
+            if grp.vol_ml < 59.0:
                 tbsp = qty_vol.to("tablespoon").magnitude
                 if tbsp < 1.0:
                     tsp = qty_vol.to("teaspoon").magnitude
