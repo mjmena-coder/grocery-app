@@ -1,20 +1,18 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Upload, ShoppingBag, Link2, Sprout, BookOpen, Loader2, CheckCircle2, X } from "lucide-react"
+import { Upload, ShoppingBag, Sprout, BookOpen, Loader2, CheckCircle2, X } from "lucide-react"
 import { UploadRecipe } from "@/components/upload-recipe"
 import { RecipesBrowser } from "@/components/recipes-browser"
 import { StoreLists } from "@/components/store-lists"
-import { UnlinkedIngredients } from "@/components/unlinked-ingredients"
 import { apiUrl } from "@/lib/api"
 
-type Tab = "recipes" | "upload" | "stores" | "unlinked"
+type Tab = "recipes" | "upload" | "stores"
 
 const TABS: { id: Tab; label: string; icon: typeof Upload }[] = [
   { id: "recipes", label: "Recipes", icon: BookOpen },
   { id: "upload", label: "Upload", icon: Upload },
   { id: "stores", label: "Store Lists", icon: ShoppingBag },
-  { id: "unlinked", label: "Unlinked", icon: Link2 },
 ]
 
 interface ExtractionStatus {
@@ -175,7 +173,6 @@ export default function Page() {
           />
         )}
         {activeTab === "stores" && <StoreLists />}
-        {activeTab === "unlinked" && <UnlinkedIngredients />}
       </main>
     </div>
   )

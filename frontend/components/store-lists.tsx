@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { Loader2, AlertCircle, Plus } from "lucide-react"
 import { apiUrl, type ConsolidatedItem } from "@/lib/api"
 import { StoreSplitView } from "@/components/store-split-view"
+import { FrequentItemsModal } from "@/components/frequent-items-modal"
 import { KitchenStaplesModal } from "@/components/kitchen-staples-modal"
 
 export function StoreLists() {
@@ -12,7 +13,8 @@ export function StoreLists() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
-  // State for controlling the modal
+  // State for controlling the modals
+  const [showFrequentModal, setShowFrequentModal] = useState(false)
   const [showStaplesModal, setShowStaplesModal] = useState(false)
 
   const fetchItems = async () => {
@@ -61,27 +63,23 @@ export function StoreLists() {
         </div>
         
         <div className="flex items-center gap-2">
+          {kitchenStaples.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowStaplesModal(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary"
+            >
+              Kitchen Staples ({kitchenStaples.length})
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={() => setShowStaplesModal(true)}
-            className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary"
+            onClick={() => setShowFrequentModal(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary"
           >
-            Show Kitchen Staples
-            {kitchenStaples.length > 0 && (
-              <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary font-semibold">
-                {kitchenStaples.length}
-              </span>
-            )}
-          </button>
-          
-          <button
-            type="button"
-            onClick={fetchItems}
-            disabled={loading}
-            className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <Plus className="h-4 w-4" />
+            Add Frequent Items
           </button>
         </div>
       </div>
@@ -106,6 +104,14 @@ export function StoreLists() {
         isOpen={showStaplesModal}
         onClose={() => setShowStaplesModal(false)}
         staples={kitchenStaples}
+        onRefresh={fetchItems}
+      />
+
+      {/* Frequent Items Modal */}
+      <FrequentItemsModal
+        isOpen={showFrequentModal}
+        onClose={() => setShowFrequentModal(false)}
+        stores={["King Soopers", "Trader Joe's", "Whole Foods"]}
         onRefresh={fetchItems}
       />
     </div>
