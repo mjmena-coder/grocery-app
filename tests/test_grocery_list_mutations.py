@@ -160,3 +160,35 @@ def test_generate_grocery_list_clears_old_records(client, session):
     all_items = session.scalars(select(GroceryItem)).all()
     assert len(all_items) == 1
     assert all_items[0].canonical_name == "New Carrots"
+
+def test_quick_add_grocery_item(client, session):
+    """
+    Asserts that a frequent staple item can be manually quick-added directly to
+    the active grocery list with correct defaults.
+    """
+    payload = {
+        "canonical_name": "Avocados",
+        "store": "Trader Joe's",
+        "category": "Produce",
+        "quantity_display": "3"
+    }
+
+    response = client.post("/grocery-list/quick-add", json=payload)
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "added",
+        "item": "Avocados",
+        "store": "Trader Joe's"
+    }
+
+    # Verify the item was persisted in the database.
+    db_item = session.scalars(select(GroceryItem).where(GroceryItem.canonical_name == "Avocados")).first()
+
+    assert db_item is not None
+    assert db_item.quantity_display == "3"
+    assert db_item.original_quantity_display == "3"
+    assert db_item.category == "Produce"
+    assert db_item.assigned_store == "Trader Joe's"
+    assert db_item.is_active is True
+    assert db_item.is_checked is False
+    assert db_item.recipes == []
