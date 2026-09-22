@@ -40,6 +40,20 @@ const STORE_ACCENTS = [
   "var(--color-chart-5)",
 ]
 
+// Recipe indicator color rotation for key and item badges
+const RECIPE_COLORS = [
+  "bg-rose-500",
+  "bg-amber-500",
+  "bg-emerald-500",
+  "bg-sky-500",
+  "bg-indigo-500",
+  "bg-fuchsia-500",
+  "bg-teal-500",
+  "bg-orange-500",
+  "bg-violet-500",
+  "bg-lime-600",
+]
+
 export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe's", "Whole Foods"], onRefresh }: StoreSplitViewProps) {
   const [checkedOverrides, setCheckedOverrides] = useState<Record<number, boolean>>({})
   const [copiedStore, setCopiedStore] = useState<string | null>(null)
@@ -122,6 +136,25 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
     return []
   }, [items])
 
+  const recipeColorMap = useMemo(() => {
+    const names = new Set<string>()
+    for (const item of safeItems) {
+      if (item.recipes) {
+        for (const r of item.recipes) {
+          const trimmed = r.trim()
+          if (trimmed) names.add(trimmed)
+        }
+      }
+    }
+    const map = new Map<string, string>()
+    Array.from(names)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach((name, index) => {
+        map.set(name, RECIPE_COLORS[index % RECIPE_COLORS.length])
+      })
+    return map
+  }, [safeItems])
+
   const copyStore = async (store: string, storeItems: ConsolidatedItem[]) => {
     const ok = await copyToClipboard(formatItemsForKeep(storeItems))
     if (ok) {
@@ -186,11 +219,25 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {recipeColorMap.size > 0 ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-border bg-card/60 px-3 py-2 text-xs">
+            <span className="font-semibold text-muted-foreground">Recipes:</span>
+            {Array.from(recipeColorMap.entries()).map(([recipeName, colorClass]) => (
+              <div key={recipeName} className="flex items-center gap-1.5">
+                <span className={`inline-block h-2.5 w-2.5 rounded-full shrink-0 ${colorClass}`} />
+                <span className="font-medium text-foreground">{recipeName}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div />
+        )}
+
         <button
           type="button"
           onClick={() => setShowExactAmounts((prev) => !prev)}
-          className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition hover:bg-secondary"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition hover:bg-secondary shrink-0"
         >
           <Scale className="h-3.5 w-3.5 text-muted-foreground" />
           <span>{showExactAmounts ? "View: Recipe Exact" : "View: Store Estimate"}</span>
@@ -288,9 +335,19 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
                                     {itemName(item)}
                                   </span>
                                   {item.recipes && item.recipes.length > 0 && (
-                                    <span className="text-[11px] text-muted-foreground/70 truncate">
-                                      From: {item.recipes.join(", ")}
-                                    </span>
+                                    <div className="mt-1 flex items-center gap-1">
+                                      {item.recipes.map((r, i) => {
+                                        const trimmed = r.trim()
+                                        const colorClass = recipeColorMap.get(trimmed) || "bg-muted-foreground"
+                                        return (
+                                          <span
+                                            key={i}
+                                            title={trimmed}
+                                            className={`inline-block h-2.5 w-2.5 rounded-full shrink-0 ${colorClass} ring-1 ring-background`}
+                                          />
+                                        )
+                                      })}
+                                    </div>
                                   )}
                                 </div>
                               </button>
