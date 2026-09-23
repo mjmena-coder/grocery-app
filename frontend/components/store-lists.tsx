@@ -21,6 +21,25 @@ export const RECIPE_COLORS = [
   "bg-lime-600",
 ]
 
+function normalizeItemsArray(rawItems: unknown): ConsolidatedItem[] {
+  if (!rawItems) return []
+  if (Array.isArray(rawItems)) return rawItems
+  if (typeof rawItems === "object") {
+    const obj = rawItems as Record<string, unknown>
+    if (Array.isArray(obj.items)) return obj.items as ConsolidatedItem[]
+    
+    // Handle grouped store objects: { "Store Name": [items...] }
+    const accumulated: ConsolidatedItem[] = []
+    for (const key of Object.keys(obj)) {
+      if (Array.isArray(obj[key])) {
+        accumulated.push(...(obj[key] as ConsolidatedItem[]))
+      }
+    }
+    return accumulated
+  }
+  return []
+}
+
 export function StoreLists() {
   const [items, setItems] = useState<ConsolidatedItem[]>([])
   const [kitchenStaples, setKitchenStaples] = useState<ConsolidatedItem[]>([])
@@ -46,8 +65,12 @@ export function StoreLists() {
         const res = await fetch(apiUrl(path))
         if (res.ok) {
           const data = await res.json()
-          setItems(Array.isArray(data) ? data : data.items || [])
-          setKitchenStaples(data.kitchen_staples || [])
+          
+          const parsedItems = normalizeItemsArray(data.items ?? data)
+          const parsedStaples = normalizeItemsArray(data.kitchen_staples)
+
+          setItems(parsedItems)
+          setKitchenStaples(parsedStaples)
           setLoading(false)
           return
         }
@@ -66,11 +89,14 @@ export function StoreLists() {
 
   const recipeColorMap = useMemo(() => {
     const names = new Set<string>()
-    const allItems = [...items, ...kitchenStaples]
+    const safeItems = normalizeItemsArray(items)
+    const safeStaples = normalizeItemsArray(kitchenStaples)
+    const allItems = [...safeItems, ...safeStaples]
+
     for (const item of allItems) {
-      if (item.recipes) {
+      if (item?.recipes) {
         for (const r of item.recipes) {
-          const trimmed = r.trim()
+          const trimmed = r?.trim()
           if (trimmed) names.add(trimmed)
         }
       }
