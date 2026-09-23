@@ -1,11 +1,25 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Loader2, AlertCircle, Plus } from "lucide-react"
 import { apiUrl, type ConsolidatedItem } from "@/lib/api"
 import { StoreSplitView } from "@/components/store-split-view"
 import { FrequentItemsModal } from "@/components/frequent-items-modal"
 import { KitchenStaplesModal } from "@/components/kitchen-staples-modal"
+
+// Recipe indicator color rotation for key and item badges across store list and modals
+export const RECIPE_COLORS = [
+  "bg-rose-500",
+  "bg-amber-500",
+  "bg-emerald-500",
+  "bg-sky-500",
+  "bg-indigo-500",
+  "bg-fuchsia-500",
+  "bg-teal-500",
+  "bg-orange-500",
+  "bg-violet-500",
+  "bg-lime-600",
+]
 
 export function StoreLists() {
   const [items, setItems] = useState<ConsolidatedItem[]>([])
@@ -49,6 +63,26 @@ export function StoreLists() {
   useEffect(() => {
     fetchItems()
   }, [])
+
+  const recipeColorMap = useMemo(() => {
+    const names = new Set<string>()
+    const allItems = [...items, ...kitchenStaples]
+    for (const item of allItems) {
+      if (item.recipes) {
+        for (const r of item.recipes) {
+          const trimmed = r.trim()
+          if (trimmed) names.add(trimmed)
+        }
+      }
+    }
+    const map = new Map<string, string>()
+    Array.from(names)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach((name, index) => {
+        map.set(name, RECIPE_COLORS[index % RECIPE_COLORS.length])
+      })
+    return map
+  }, [items, kitchenStaples])
 
   return (
     <div>
@@ -97,7 +131,13 @@ export function StoreLists() {
         </div>
       )}
 
-      {!loading && !error && <StoreSplitView items={items} onRefresh={fetchItems} />}
+      {!loading && !error && (
+        <StoreSplitView
+          items={items}
+          recipeColorMap={recipeColorMap}
+          onRefresh={fetchItems}
+        />
+      )}
 
       {/* Kitchen Staples Modal */}
       <KitchenStaplesModal

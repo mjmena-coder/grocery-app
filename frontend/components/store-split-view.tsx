@@ -21,6 +21,7 @@ import { parseQuantityAndUnit, isValidQuantityNumber, pluralizeUnit } from "@/li
 interface StoreSplitViewProps {
   items: ConsolidatedItem[] | { [key: string]: ConsolidatedItem[] } | { items: ConsolidatedItem[] }
   allStores?: string[]
+  recipeColorMap?: Map<string, string>
   onRefresh?: () => void
 }
 
@@ -40,7 +41,7 @@ const STORE_ACCENTS = [
   "var(--color-chart-5)",
 ]
 
-// Recipe indicator color rotation for key and item badges
+// Recipe indicator color rotation fallback
 const RECIPE_COLORS = [
   "bg-rose-500",
   "bg-amber-500",
@@ -54,7 +55,12 @@ const RECIPE_COLORS = [
   "bg-lime-600",
 ]
 
-export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe's", "Whole Foods"], onRefresh }: StoreSplitViewProps) {
+export function StoreSplitView({
+  items,
+  allStores = ["King Soopers", "Trader Joe's", "Whole Foods"],
+  recipeColorMap: propRecipeColorMap,
+  onRefresh,
+}: StoreSplitViewProps) {
   const [checkedOverrides, setCheckedOverrides] = useState<Record<number, boolean>>({})
   const [copiedStore, setCopiedStore] = useState<string | null>(null)
   const [showExactAmounts, setShowExactAmounts] = useState(false)
@@ -136,7 +142,9 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
     return []
   }, [items])
 
-  const recipeColorMap = useMemo(() => {
+  const localRecipeColorMap = useMemo(() => {
+    if (propRecipeColorMap) return propRecipeColorMap
+
     const names = new Set<string>()
     for (const item of safeItems) {
       if (item.recipes) {
@@ -153,7 +161,9 @@ export function StoreSplitView({ items, allStores = ["King Soopers", "Trader Joe
         map.set(name, RECIPE_COLORS[index % RECIPE_COLORS.length])
       })
     return map
-  }, [safeItems])
+  }, [safeItems, propRecipeColorMap])
+
+  const recipeColorMap = propRecipeColorMap || localRecipeColorMap
 
   const copyStore = async (store: string, storeItems: ConsolidatedItem[]) => {
     const ok = await copyToClipboard(formatItemsForKeep(storeItems))
