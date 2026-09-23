@@ -170,6 +170,7 @@ export function StoreLists() {
         isOpen={showStaplesModal}
         onClose={() => setShowStaplesModal(false)}
         staples={kitchenStaples}
+        recipeColorMap={recipeColorMap}
         onRefresh={fetchItems}
       />
 

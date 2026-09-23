@@ -16,6 +16,7 @@ interface KitchenStaplesModalProps {
   onClose: () => void
   staples: ConsolidatedItem[]
   allStores?: string[]
+  recipeColorMap?: Map<string, string>
   onRefresh?: () => void
 }
 
@@ -24,6 +25,7 @@ export function KitchenStaplesModal({
   onClose,
   staples,
   allStores = ["King Soopers", "Trader Joe's", "Whole Foods"],
+  recipeColorMap,
   onRefresh,
 }: KitchenStaplesModalProps) {
   const [movingItem, setMovingItem] = useState<ConsolidatedItem | null>(null)
@@ -215,15 +217,18 @@ export function KitchenStaplesModal({
                 )}
 
                 {staple.recipes && staple.recipes.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {staple.recipes.map((recipeName, index) => (
-                      <span
-                        key={index}
-                        className="rounded-md bg-secondary px-1.5 py-0.5 text-xs text-muted-foreground"
-                      >
-                        {recipeName}
-                      </span>
-                    ))}
+                  <div className="mt-1 flex items-center gap-1">
+                    {staple.recipes.map((r, i) => {
+                      const trimmed = r.trim()
+                      const colorClass = recipeColorMap?.get(trimmed) || "bg-muted-foreground"
+                      return (
+                        <span
+                          key={i}
+                          title={trimmed}
+                          className={`inline-block h-2.5 w-2.5 rounded-full shrink-0 ${colorClass} ring-1 ring-background`}
+                        />
+                      )
+                    })}
                   </div>
                 )}
               </div>
