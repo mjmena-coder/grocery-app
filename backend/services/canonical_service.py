@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from backend.models import CanonicalIngredient, Ingredient
 from backend.services.vlm_service import ParsedIngredientSchema
-from backend.services.canonical_catalog import resolve_canonical_category
+from backend.services.canonical_catalog import resolve_canonical_category, normalize_canonical_product_name
 
 
 def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optional[ParsedIngredientSchema]) -> Optional[int]:
@@ -12,16 +12,23 @@ def resolve_or_create_canonical_ingredient(session: Session, ingredient: Optiona
     Attempts to match a parsed ingredient's canon name against existing
     CanonicalIngredient records. If none is found, auto-creates a new one.
     """
-    canonical_name = ingredient.canonical_name
-    if not canonical_name:
+    raw_canonical_name = ingredient.canonical_name
+    if not raw_canonical_name:
         return None
 
+    # Map product-specific transforms (e.g. lemon zest -> organic lemon)
+    canonical_name = normalize_canonical_product_name(raw_canonical_name, ingredient.raw_text or "")
+
     category, is_dirty = resolve_canonical_category(
-            name=ingredient.canonical_name, # Using canonical name instead of cleaned_name, expect already cleaned.
+            name=canonical_name,
             raw_text=ingredient.raw_text,
             vlm_category=ingredient.category,
             vlm_dirty_dozen=ingredient.is_dirty_dozen,
         )
+
+    # If canonical_name is organic lemon, enforce dirty_dozen / organic consideration
+    if canonical_name == "organic lemon":
+        is_dirty = True
 
     # Exact case-insensitive match
     stmt = select(CanonicalIngredient.id).where(

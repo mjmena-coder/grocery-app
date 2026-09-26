@@ -10,6 +10,8 @@ CANONICAL_SEED_CATALOG: dict[str, Tuple[str, bool]] = {
     "kalamata olives": ("PRODUCE", False),
     "olives": ("PRODUCE", False),
     "lemon": ("PRODUCE", False),
+    "organic lemon": ("PRODUCE", True),
+    "lemon zest": ("PRODUCE", True),
     "lime": ("PRODUCE", False),
     "cilantro": ("PRODUCE", False),
     "parsley": ("PRODUCE", False),
@@ -41,6 +43,9 @@ CANONICAL_SEED_CATALOG: dict[str, Tuple[str, bool]] = {
     "chicken thigh": ("MEAT", False),
     "ground beef": ("MEAT", False),
     "bacon": ("MEAT", False),
+    "thick-cut bacon": ("MEAT", False),
+    "thick cut bacon": ("MEAT", False),
+    "center-cut bacon": ("MEAT", False),
     "pork chop": ("MEAT", False),
     "salmon": ("MEAT", False),
     "shrimp": ("MEAT", False),
@@ -101,3 +106,14 @@ def resolve_canonical_category(
 
     # 5. Ultimate Fallback
     return "GENERAL", vlm_dirty_dozen
+
+
+def normalize_canonical_product_name(name: str, raw_text: str = "") -> str:
+    """
+    Normalizes specific culinary ingredients that must be mapped to specific
+    purchase items, such as lemon zest needing to be bought as organic lemon.
+    """
+    check_str = f"{name} {raw_text}".lower()
+    if "lemon zest" in check_str or "zest of lemon" in check_str or "lemon peel" in check_str or "grated lemon" in check_str:
+        return "organic lemon"
+    return name

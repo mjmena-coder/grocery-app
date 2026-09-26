@@ -5,7 +5,7 @@ class StoreRouter:
     DEFAULT_STORE: str = "King Soopers"
     SPECIALTY_STORE: str = "Whole Foods"
 
-    SPECIALTY_CATEGORIES: Set[str] = {"meat", "seafood"}
+    SPECIALTY_CATEGORIES: Set[str] = {"meat", "seafood", "produce"}
 
     # Keyword overrides (Dirty Dozen + user specific preferences)
     SPECIALTY_KEYWORDS: List[str] = [

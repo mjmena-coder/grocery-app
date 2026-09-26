@@ -65,13 +65,13 @@ Instructions:
 1. Extract Title, Yield, Prep Time, Cook Time, Steps, and Notes.
 2. For each ingredient:
    - raw_text: preserve full line context (e.g., '2 cups greens, finely chopped').
-   - canonical_name: extract lowercased full ingredient name preserving specific type, cut, or variety (e.g., 'rice ramen noodles', 'leafy dark greens', 'boneless beef chuck'). Do NOT reduce to a single base noun if key descriptors define the ingredient. Only strip quantities, measurement units, and prep instructions (e.g. 'chopped', 'diced').
+   - canonical_name: extract lowercased full ingredient name preserving specific type, cut, thickness, texture, or variety (e.g., 'thick-cut bacon', 'center-cut bacon', 'rice ramen noodles', 'leafy dark greens', 'boneless beef chuck', 'extra-firm tofu', 'crushed tomatoes'). NEVER reduce a distinct retail grocery product modifier (e.g. 'thick-cut', 'smoked', 'extra-firm') to just the generic base noun ('bacon', 'tofu'). For lemon zest or lemon peel, canonical_name should be 'organic lemon'. Only strip quantities, measurement units, and prep actions (e.g. 'chopped', 'diced', 'minced').
    - quantity: convert fractions or whole numbers to float (e.g., 2.0).
    - unit: isolate STRICT measurement units ONLY (e.g., 'cup', 'tbsp', 'clove', 'oz', 'piece'). NEVER include prep words like 'chopped' or adjectives like 'fresh'.
    - size_descriptor: extract ONLY physical size/dimensions (e.g., '1-inch', 'large', 'medium', '3-cm'). NEVER include prep actions like 'chopped', 'diced', 'minced', 'grated'.
    - comment: place all prep instructions, quality notes, and state descriptions here (e.g., 'finely chopped', 'fresh', 'peeled and grated').
-   - is_dirty_dozen: mark true for high-pesticide produce items (spinach, strawberries, kale, grapes, apples, peppers, etc.).
-   - is organic_considerations: mark true for items that should be considered bought organic (pregnancy or general health reasons).
+   - is_dirty_dozen: mark true for high-pesticide produce items (spinach, strawberries, kale, grapes, apples, peppers, etc.) OR any lemon item where the zest or peel is used.
+   - is organic_considerations: mark true for items that should be considered bought organic (pregnancy or general health reasons, or lemon zest/peel).
    - category: MUST be classified into EXACTLY one of these options:
        * PRODUCE: Fresh vegetables, fruits, fresh herbs, root crops, squash (e.g., 'tomato', 'celery', 'basil', 'yuca', 'corn', 'chayote', 'plantain', 'cabbage', 'squash').
        * PANTRY: Oils, vinegars, dried spices/herbs, seeds, sauces, canned goods, broths, seasonings (e.g., 'soy sauce', 'sesame seeds', 'bay leaf', 'bouillon', 'salt').
