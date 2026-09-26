@@ -18,7 +18,6 @@ CANONICAL_SEED_CATALOG: dict[str, Tuple[str, bool]] = {
     "parsley": ("PRODUCE", False),
     "spinach": ("PRODUCE", True),
     "strawberries": ("PRODUCE", True),
-    "strawberries": ("PRODUCE", True),
     "kale": ("PRODUCE", True),
     "collard": ("PRODUCE", True),
     "grape": ("PRODUCE", True),
