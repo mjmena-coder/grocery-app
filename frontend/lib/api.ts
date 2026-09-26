@@ -238,6 +238,7 @@ export async function generateGroceryList(recipeIds: number[]): Promise<void> {
 // Google Keep note that is in checklist mode turns each line into a checkbox.
 export function formatItemsForKeep(items: ConsolidatedItem[]): string {
   return items
+    .filter((item) => !itemChecked(item))
     .map((item) => {
       const qty = itemQuantity(item)
       return qty ? `${qty} - ${itemName(item)}` : itemName(item)
