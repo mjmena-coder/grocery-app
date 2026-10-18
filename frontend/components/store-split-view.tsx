@@ -208,6 +208,13 @@ export function StoreSplitView({
       await fetch(apiUrl(`/grocery-list/items/${item.id}/toggle`), {
         method: "PATCH",
       })
+      // Clear the override so we rely on the fresh data from the backend
+      setCheckedOverrides((prev) => {
+        const nextState = { ...prev }
+        delete nextState[item.id]
+        return nextState
+      })
+      onRefresh?.()
     } catch {
       setCheckedOverrides((prev) => ({ ...prev, [item.id]: !next }))
     }

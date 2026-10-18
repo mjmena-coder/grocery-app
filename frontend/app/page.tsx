@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Upload, ShoppingBag, Sprout, BookOpen, Loader2, CheckCircle2, X } from "lucide-react"
 import { UploadRecipe } from "@/components/upload-recipe"
 import { RecipesBrowser } from "@/components/recipes-browser"
@@ -23,11 +24,18 @@ interface ExtractionStatus {
   last_completed_at?: number | null
 }
 
-export default function Page() {
-  const [activeTab, setActiveTab] = useState<Tab>("recipes")
+function PageContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const activeTab = (searchParams.get("tab") as Tab) || "recipes"
+
   const [extractionStatus, setExtractionStatus] = useState<ExtractionStatus>({ is_busy: false })
   const [toast, setToast] = useState<{ title: string; recipeId?: number } | null>(null)
   const lastSeenCompletedAt = useRef<number | null>(null)
+
+  const handleTabChange = (tab: Tab) => {
+    router.replace(`?tab=${tab}`)
+  }
 
   const checkStatus = async () => {
     try {
@@ -84,7 +92,7 @@ export default function Page() {
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                     active
@@ -122,7 +130,7 @@ export default function Page() {
               </div>
               <button
                 type="button"
-                onClick={() => setActiveTab("upload")}
+                onClick={() => handleTabChange("upload")}
                 className="underline hover:text-foreground"
               >
                 View status
@@ -145,7 +153,7 @@ export default function Page() {
             type="button"
             onClick={() => {
               setToast(null)
-              setActiveTab("recipes")
+              handleTabChange("recipes")
             }}
             className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
           >
@@ -163,7 +171,7 @@ export default function Page() {
       )}
 
       <main className="mx-auto max-w-5xl px-4 py-8">
-        {activeTab === "recipes" && <RecipesBrowser onListGenerated={() => setActiveTab("stores")} />}
+        {activeTab === "recipes" && <RecipesBrowser onListGenerated={() => handleTabChange("stores")} />}
         {activeTab === "upload" && (
           <UploadRecipe
             isBusy={extractionStatus.is_busy}
@@ -175,5 +183,13 @@ export default function Page() {
         {activeTab === "stores" && <StoreLists />}
       </main>
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <PageContent />
+    </Suspense>
   )
 }

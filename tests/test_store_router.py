@@ -4,9 +4,11 @@ from backend.services.store_router import StoreRouter
 
 
 def test_category_routing():
-    """Verify specialty categories (meat, seafood) route to Whole Foods."""
+    """Verify specialty categories (meat, seafood, produce) route to Whole Foods."""
     assert StoreRouter.assign_store("ribeye steak", "meat") == "Whole Foods"
     assert StoreRouter.assign_store("salmon fillet", "seafood") == "Whole Foods"
+    assert StoreRouter.assign_store("yellow onion", "produce") == "Whole Foods"
+    assert StoreRouter.assign_store("garlic", "PRODUCE") == "Whole Foods"
 
 
 def test_keyword_routing():
